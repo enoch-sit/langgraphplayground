@@ -958,9 +958,6 @@ Available tools:
 
 ```env
 # Use different Bedrock model
-AWS_BEDROCK_MODEL=anthropic.claude-3-sonnet-20240229-v1:0
-
-# Or any other model
 AWS_BEDROCK_MODEL=amazon.titan-text-express-v1
 ```
 
