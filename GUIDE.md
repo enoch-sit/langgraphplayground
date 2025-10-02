@@ -292,35 +292,32 @@ FastAPI serves:
 
 ### Base Path Handling (BULLETPROOF! 🎯)
 
-**The Problem You Experienced:**
+**The Problem We Solved:**
 ```
-/langgraphplayground/assets/index.js → 404 Error ❌
-```
-
-**Our Solution:**
-
-1. **Vite builds with `base: '/'`** (no complex paths)
-2. **FastAPI serves everything** (React + API)
-3. **FastAPI uses `ROOT_PATH` env var** (handles nginx subpath)
-4. **Nginx just proxies** (no rewrites!)
-
-**Result:**
-```
-Browser: https://domain.com/langgraphplayground/assets/main.js
-   ↓
-Nginx: proxy_pass to localhost:2024/assets/main.js
-   ↓
-FastAPI: serves from frontend/dist/assets/main.js
-   ↓
-✅ WORKS! No path confusion!
+Browser requests: /langgraphplayground/assets/index.js
+FastAPI returns: text/html (404 page)
+Error: "Expected JavaScript but got text/html" ❌
 ```
 
-**Configuration:**
+**The Root Cause:**
 
-`frontend/vite.config.ts`:
+When deploying behind nginx with a subpath (e.g., `/langgraphplayground/`), you need **THREE things to align**:
+
+1. **Vite build** - Asset paths in HTML
+2. **FastAPI mount** - Where assets are served
+3. **Nginx config** - How requests are proxied
+
+**Our Complete Solution:**
+
+#### 1. Vite Configuration (`frontend/vite.config.ts`)
+
 ```typescript
 export default defineConfig({
-  base: '/',  // ✅ Simple! FastAPI handles the rest
+  plugins: [react()],
+  
+  // ✅ CRITICAL: Set base to match nginx location path
+  base: '/langgraphplayground/',
+  
   server: {
     port: 3000,
     proxy: {
@@ -332,11 +329,104 @@ export default defineConfig({
 })
 ```
 
-`docker-compose.yml` or `.env`:
-```yaml
-environment:
-  - ROOT_PATH=/langgraphplayground  # ✅ FastAPI knows its base path
+**Why:** This makes Vite generate HTML with paths like `/langgraphplayground/assets/index.js`
+
+#### 2. FastAPI Asset Mounting (`src/agent/webapp.py`)
+
+```python
+# Get ROOT_PATH from environment (for nginx subpath deployment)
+ROOT_PATH = os.getenv("ROOT_PATH", "")
+
+# Mount React static assets if build exists
+if os.path.exists(REACT_BUILD_DIR):
+    assets_dir = os.path.join(REACT_BUILD_DIR, "assets")
+    if os.path.exists(assets_dir):
+        # ✅ CRITICAL: Mount at ROOT_PATH + /assets to match Vite build paths
+        mount_path = f"{ROOT_PATH}/assets" if ROOT_PATH else "/assets"
+        app.mount(mount_path, StaticFiles(directory=assets_dir), name="assets")
 ```
+
+**Why:** This serves assets at `/langgraphplayground/assets` (matching the Vite-generated paths)
+
+#### 3. Nginx Configuration
+
+```nginx
+location /langgraphplayground/ {
+    # ✅ CRITICAL: Don't rewrite! Keep full path
+    proxy_pass http://localhost:2024;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 75s;
+}
+```
+
+**Why:** No `rewrite` directive - full path is preserved and passed to FastAPI
+
+#### 4. Environment Variables
+
+```bash
+# .env or docker-compose.yml
+ROOT_PATH=/langgraphplayground  # ✅ Must match nginx location
+```
+
+**Request Flow (Success!):**
+
+```
+Browser → https://domain.com/langgraphplayground/assets/index.js
+          ↓
+Nginx   → Proxies to http://localhost:2024/langgraphplayground/assets/index.js
+          ↓ (full path preserved, no rewrite)
+FastAPI → Assets mounted at ROOT_PATH + /assets = /langgraphplayground/assets
+          ↓
+          Serves from /app/frontend/dist/assets/index.js
+          ↓
+Browser ← application/javascript ✅ WORKS!
+```
+
+**Common Mistakes (What NOT to Do):**
+
+❌ **Wrong Vite Config:**
+```typescript
+base: '/'  // Assets will be /assets/index.js (missing prefix)
+```
+
+❌ **Wrong FastAPI Mount:**
+```python
+app.mount("/assets", ...)  // Assets at /assets (missing prefix)
+```
+
+❌ **Wrong Nginx Config:**
+```nginx
+location /langgraphplayground/ {
+    rewrite ^/langgraphplayground/(.*) /$1 break;  // Strips prefix!
+    proxy_pass http://localhost:2024/;
+}
+```
+
+**Debugging Tips:**
+
+If you see "Expected JavaScript but got text/html":
+
+1. **Check browser network tab:** What path is being requested?
+2. **Check FastAPI logs:** Is the request reaching the assets mount?
+3. **Test assets directly:** `curl -I https://domain.com/langgraphplayground/assets/index.js`
+4. **Verify mount path:** Check logs for "Mounted /langgraphplayground/assets"
+5. **Inspect built HTML:** `cat frontend/dist/index.html` - paths should include prefix
+
+**Why This Works:**
+
+- ✅ **No path mismatch** - Vite, FastAPI, and nginx all use `/langgraphplayground/`
+- ✅ **No rewrites** - Full path flows through from browser to FastAPI
+- ✅ **ROOT_PATH alignment** - FastAPI knows its base path
+- ✅ **Works locally and in production** - Same configuration
 
 **Why This Works:**
 - ✅ **No Vite base path complexity** (always builds with `/`)
