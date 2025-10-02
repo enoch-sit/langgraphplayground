@@ -54,6 +54,55 @@ function App() {
     }
   };
   
+  // Time travel to checkpoint
+  const travelToCheckpoint = async (checkpointId: string) => {
+    if (!currentThreadId) return;
+    
+    try {
+      setLoading(true);
+      
+      // Get the state at this checkpoint
+      const checkpointState = await api.getCheckpointState(currentThreadId, checkpointId);
+      
+      // Update UI to show messages from that checkpoint
+      setMessages(checkpointState.messages);
+      setStateInfo({
+        messageCount: checkpointState.messages.length,
+        next: checkpointState.next,
+        checkpointId: checkpointState.checkpoint_id,
+      });
+      
+      addSystemMessage(`⏰ Traveled to checkpoint ${checkpointId.slice(0, 8)}... (${checkpointState.messages.length} messages)`);
+    } catch (error) {
+      addSystemMessage(`Error traveling to checkpoint: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Resume from checkpoint
+  const resumeFromCheckpoint = async (checkpointId: string) => {
+    if (!currentThreadId) return;
+    
+    try {
+      setLoading(true);
+      addSystemMessage(`▶️ Resuming from checkpoint ${checkpointId.slice(0, 8)}...`);
+      
+      // Resume execution from this checkpoint
+      const response = await api.resumeFromCheckpoint(currentThreadId, checkpointId);
+      
+      // Reload current state to see the results
+      await loadState();
+      
+      const msgCount = response.messages?.length || 0;
+      addSystemMessage(`✅ Resumed successfully - ${msgCount} messages in final state`);
+    } catch (error) {
+      addSystemMessage(`Error resuming from checkpoint: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   // Load checkpoint history
   const loadHistory = async () => {
     if (!currentThreadId) return;
@@ -320,11 +369,43 @@ function App() {
                 <li
                   key={checkpoint.index}
                   className="checkpoint-item"
-                  onClick={() => alert(`Time travel to checkpoint ${checkpoint.index}\n(Rewind functionality would go here)`)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <div><strong>Checkpoint {checkpoint.index}</strong></div>
                   <div style={{ fontSize: '11px', color: '#666' }}>
                     {checkpoint.messages_count} messages
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                    <button
+                      onClick={() => checkpoint.checkpoint_id && travelToCheckpoint(checkpoint.checkpoint_id)}
+                      disabled={loading || !checkpoint.checkpoint_id}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        backgroundColor: '#764ba2',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⏰ View
+                    </button>
+                    <button
+                      onClick={() => checkpoint.checkpoint_id && resumeFromCheckpoint(checkpoint.checkpoint_id)}
+                      disabled={loading || !checkpoint.checkpoint_id}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        backgroundColor: '#667eea',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ▶️ Resume
+                    </button>
                   </div>
                 </li>
               ))

@@ -556,7 +556,38 @@ async def update_state_fields(thread_id: str, state_update: Dict[str, Any]):
         if not current_state.values:
             raise HTTPException(status_code=404, detail="Thread state not found")
         
-        # Update state with new values
+        # Convert messages from dict format to LangChain message objects
+        if "messages" in state_update:
+            from langchain_core.messages import SystemMessage, ToolMessage
+            
+            converted_messages = []
+            for msg in state_update["messages"]:
+                if isinstance(msg, dict):
+                    msg_type = msg.get("type", "HumanMessage")
+                    content = msg.get("content", "")
+                    
+                    if msg_type == "HumanMessage" or msg_type == "human":
+                        converted_messages.append(HumanMessage(content=content))
+                    elif msg_type == "AIMessage" or msg_type == "ai":
+                        # Handle tool calls if present
+                        tool_calls = msg.get("tool_calls", [])
+                        if tool_calls:
+                            converted_messages.append(AIMessage(content=content, tool_calls=tool_calls))
+                        else:
+                            converted_messages.append(AIMessage(content=content))
+                    elif msg_type == "SystemMessage" or msg_type == "system":
+                        converted_messages.append(SystemMessage(content=content))
+                    elif msg_type == "ToolMessage" or msg_type == "tool":
+                        # ToolMessage requires tool_call_id
+                        tool_call_id = msg.get("tool_call_id", msg.get("id", ""))
+                        converted_messages.append(ToolMessage(content=content, tool_call_id=tool_call_id))
+                else:
+                    # Already a LangChain message object
+                    converted_messages.append(msg)
+            
+            state_update["messages"] = converted_messages
+        
+        # Update state with converted values
         graph.update_state(config, state_update)
         
         # Get updated state
@@ -565,7 +596,10 @@ async def update_state_fields(thread_id: str, state_update: Dict[str, Any]):
         return {
             "status": "updated",
             "thread_id": thread_id,
-            "updates_applied": state_update,
+            "updates_applied": {
+                "messages_count": len(state_update.get("messages", [])),
+                **{k: v for k, v in state_update.items() if k != "messages"}
+            },
             "current_state": {
                 "messages_count": len(updated_state.values.get("messages", [])),
                 "next": updated_state.next
@@ -575,6 +609,106 @@ async def update_state_fields(thread_id: str, state_update: Dict[str, Any]):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating state: {str(e)}")
+
+
+@app.get("/threads/{thread_id}/checkpoints/{checkpoint_id}/state")
+async def get_checkpoint_state(thread_id: str, checkpoint_id: str):
+    """Get the state at a specific checkpoint for time travel."""
+    config = {
+        "configurable": {
+            "thread_id": thread_id,
+            "checkpoint_id": checkpoint_id
+        }
+    }
+    
+    try:
+        state = graph.get_state(config)
+        
+        if not state.values:
+            raise HTTPException(status_code=404, detail="Checkpoint not found")
+        
+        # Serialize messages
+        messages = []
+        for msg in state.values.get("messages", []):
+            msg_dict = {
+                "type": type(msg).__name__,
+                "content": msg.content if hasattr(msg, "content") else str(msg)
+            }
+            
+            # Add tool_calls if present
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                msg_dict["tool_calls"] = msg.tool_calls
+            
+            messages.append(msg_dict)
+        
+        return {
+            "thread_id": thread_id,
+            "checkpoint_id": checkpoint_id,
+            "messages": messages,
+            "next": state.next,
+            "metadata": state.metadata
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting checkpoint state: {str(e)}")
+
+
+@app.post("/threads/{thread_id}/checkpoints/{checkpoint_id}/resume")
+async def resume_from_checkpoint(thread_id: str, checkpoint_id: str, new_input: Optional[Dict[str, Any]] = None):
+    """Resume execution from a specific checkpoint (time travel).
+    
+    If new_input is provided, it will be used as the input for resuming.
+    If new_input is None, the graph will resume from the checkpoint with no new input.
+    """
+    config = {
+        "configurable": {
+            "thread_id": thread_id,
+            "checkpoint_id": checkpoint_id
+        }
+    }
+    
+    try:
+        # Get the checkpoint state to verify it exists
+        checkpoint_state = graph.get_state(config)
+        
+        if not checkpoint_state.values:
+            raise HTTPException(status_code=404, detail="Checkpoint not found")
+        
+        # Resume from checkpoint
+        # If new_input is provided, invoke with it; otherwise invoke with None
+        input_data = None if new_input is None else new_input
+        
+        result = graph.invoke(input_data, config)
+        
+        # Get final state
+        final_state = graph.get_state({"configurable": {"thread_id": thread_id}})
+        
+        # Serialize messages
+        messages = []
+        for msg in final_state.values.get("messages", []):
+            msg_dict = {
+                "type": type(msg).__name__,
+                "content": msg.content if hasattr(msg, "content") else str(msg)
+            }
+            
+            # Add tool_calls if present
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                msg_dict["tool_calls"] = msg.tool_calls
+            
+            messages.append(msg_dict)
+        
+        return {
+            "status": "completed",
+            "thread_id": thread_id,
+            "resumed_from_checkpoint": checkpoint_id,
+            "messages": messages,
+            "next": final_state.next
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error resuming from checkpoint: {str(e)}")
 
 
 # Root endpoint - serve React SPA

@@ -133,4 +133,28 @@ export const api = {
       body: JSON.stringify(stateUpdate),
     });
   },
+  
+  // Time travel / Checkpoint navigation
+  async getCheckpointState(
+    threadId: string,
+    checkpointId: string
+  ): Promise<ThreadState> {
+    return apiFetch<ThreadState>(
+      `/threads/${threadId}/checkpoints/${checkpointId}/state`
+    );
+  },
+  
+  async resumeFromCheckpoint(
+    threadId: string,
+    checkpointId: string,
+    newInput?: Record<string, any>
+  ): Promise<RunResponse> {
+    return apiFetch<RunResponse>(
+      `/threads/${threadId}/checkpoints/${checkpointId}/resume`,
+      {
+        method: 'POST',
+        body: JSON.stringify(newInput || {}),
+      }
+    );
+  },
 };
