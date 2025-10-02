@@ -12,7 +12,7 @@ import type {
 /**
  * Get API base URL
  * In development: uses Vite proxy (empty string)
- * In production: FastAPI serves everything with ROOT_PATH handling
+ * In production: uses Vite's BASE_URL which matches the base config
  */
 function getApiBase(): string {
   // In development mode, Vite proxy handles routing
@@ -20,9 +20,10 @@ function getApiBase(): string {
     return '';
   }
   
-  // In production, FastAPI handles the base path via ROOT_PATH
-  // No need for runtime detection - just use relative paths
-  return '';
+  // In production, use Vite's BASE_URL (e.g., '/langgraphplayground/')
+  // Remove trailing slash to avoid double slashes in API calls
+  const base = import.meta.env.BASE_URL || '/';
+  return base === '/' ? '' : base.replace(/\/$/, '');
 }
 
 const API_BASE = getApiBase();
