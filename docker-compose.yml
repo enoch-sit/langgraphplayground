@@ -10,6 +10,7 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - ROOT_PATH=/langgraphplayground
     volumes:
       - ./src:/app/src
       - ./data:/app/data  # For persistent storage if needed
