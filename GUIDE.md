@@ -581,7 +581,7 @@ sudo apt install -y nginx
 ssh user@your-server-ip
 
 # Clone repo
-git clone https://github.com/yourusername/langgraphplayground.git
+git clone https://github.com/enoch-sit/langgraphplayground.git
 cd langgraphplayground
 ```
 
@@ -1084,7 +1084,7 @@ FastAPI uses `root_path` parameter (set via `ROOT_PATH` env var) to:
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/yourusername/langgraphplayground.git
+git clone https://github.com/enoch-sit/langgraphplayground.git
 cd langgraphplayground
 
 # 2. Create .env with production credentials

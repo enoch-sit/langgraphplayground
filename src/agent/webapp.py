@@ -441,6 +441,10 @@ async def serve_spa(full_path: str):
     if full_path.startswith(("threads", "runs", "graph", "health", "docs", "openapi.json")):
         raise HTTPException(status_code=404, detail="Not found")
     
+    # Skip if it's a static asset (let the /assets mount handle it)
+    if full_path.startswith("assets/"):
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
     # Serve React index.html for all other routes
     if os.path.exists(REACT_BUILD_DIR):
         react_index = os.path.join(REACT_BUILD_DIR, "index.html")
