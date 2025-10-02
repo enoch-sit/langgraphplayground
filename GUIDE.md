@@ -408,6 +408,50 @@ else:
     return FileResponse("src/ui/index.html")  # Vanilla JS
 ```
 
+### Vanilla `index.html` - Fallback UI
+
+**Why Keep `src/ui/index.html`?**
+
+The vanilla `index.html` serves as a **safety net** and **development fallback**:
+
+| Scenario | Uses React? | Uses Vanilla? |
+|----------|-------------|---------------|
+| **Docker deployment** | ✅ Yes | ❌ No |
+| **Local with `npm run build`** | ✅ Yes | ❌ No |
+| **Local without npm install** | ❌ No | ✅ **Yes!** |
+| **React build deleted/failed** | ❌ No | ✅ **Yes!** |
+| **Quick API testing** | ❌ No | ✅ **Yes!** |
+| **Backend-only development** | ❌ No | ✅ **Yes!** |
+
+**Benefits:**
+- ✅ **Zero dependencies** - No Node.js required
+- ✅ **Always works** - Single HTML file (no build step)
+- ✅ **Quick testing** - Just run FastAPI
+- ✅ **Backwards compatible** - App never breaks
+- ✅ **Development fallback** - Works without npm
+
+**Example Usage:**
+```bash
+# Clone repo
+git clone https://github.com/enoch-sit/langgraphplayground.git
+cd langgraphplayground
+
+# Skip npm install completely!
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run FastAPI - vanilla UI automatically served
+uvicorn src.agent.webapp:app --reload
+```
+
+**In Production (Docker):**
+1. ✅ Docker builds React during image build (`npm run build`)
+2. ✅ React build exists → Uses React
+3. ❌ Vanilla `index.html` exists but is **ignored** (backup only)
+
+**Recommendation:** Keep `src/ui/index.html` as a safety net! It costs nothing and ensures your app always has *some* UI.
+
 ### React Development Tips
 
 **Hot Module Replacement (HMR):**
