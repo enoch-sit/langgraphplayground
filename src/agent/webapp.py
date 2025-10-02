@@ -70,11 +70,16 @@ class CheckpointRewind(BaseModel):
 REACT_BUILD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
 VANILLA_UI_PATH = os.path.join(os.path.dirname(__file__), "..", "ui", "index.html")
 
+# Get ROOT_PATH from environment (for nginx subpath deployment)
+ROOT_PATH = os.getenv("ROOT_PATH", "")
+
 # Mount React static assets if build exists
 if os.path.exists(REACT_BUILD_DIR):
     assets_dir = os.path.join(REACT_BUILD_DIR, "assets")
     if os.path.exists(assets_dir):
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+        # Mount at ROOT_PATH + /assets to match Vite build paths
+        mount_path = f"{ROOT_PATH}/assets" if ROOT_PATH else "/assets"
+        app.mount(mount_path, StaticFiles(directory=assets_dir), name="assets")
 
 
 @app.get("/health")
@@ -437,12 +442,16 @@ async def root():
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     """Serve React SPA for all unmatched routes (enables client-side routing)."""
+    # Remove ROOT_PATH prefix if present (nginx already handled it)
+    if ROOT_PATH and full_path.startswith(ROOT_PATH.lstrip("/")):
+        full_path = full_path[len(ROOT_PATH.lstrip("/")):]
+    
     # Skip if it's an API route (these are already defined above)
     if full_path.startswith(("threads", "runs", "graph", "health", "docs", "openapi.json")):
         raise HTTPException(status_code=404, detail="Not found")
     
-    # Skip if it's a static asset (let the /assets mount handle it)
-    if full_path.startswith("assets/"):
+    # Skip if it's a static asset (let the mount handle it)
+    if "assets/" in full_path:
         raise HTTPException(status_code=404, detail="Asset not found")
     
     # Serve React index.html for all other routes
