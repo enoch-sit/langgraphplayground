@@ -467,6 +467,117 @@ sudo systemctl reload nginx
 
 ### Docker Production Deployment
 
+#### Understanding ROOT_PATH for Nginx
+
+When deploying behind nginx with a path prefix (e.g., `/langgraphplayground/`), you **must** set the `ROOT_PATH` environment variable.
+
+**Why ROOT_PATH is Required:**
+
+| Without ROOT_PATH | With ROOT_PATH=/langgraphplayground |
+|-------------------|-------------------------------------|
+| ❌ FastAPI thinks it's at `/` | ✅ FastAPI knows it's at `/langgraphplayground/` |
+| ❌ Static files: `/static/style.css` (404) | ✅ Static files: `/langgraphplayground/static/style.css` (works) |
+| ❌ API docs: `/docs` (404) | ✅ API docs: `/langgraphplayground/docs` (works) |
+| ❌ WebSocket: `wss://domain/ws` (fails) | ✅ WebSocket: `wss://domain/langgraphplayground/ws` (works) |
+
+**How It Works:**
+
+```
+User Request:
+  https://project-1-04/langgraphplayground/health
+             ↓
+Nginx rewrites path:
+  rewrite ^/langgraphplayground/(.*) /$1 break;
+  → Forwards to: http://localhost:2024/health
+             ↓
+FastAPI receives: /health
+  BUT needs to generate URLs with /langgraphplayground/ prefix
+             ↓
+ROOT_PATH tells FastAPI:
+  "When generating URLs, prepend /langgraphplayground/"
+             ↓
+Result: All links, static files, redirects work correctly ✅
+```
+
+**Your docker-compose.yml Configuration:**
+
+```yaml
+version: '3.8'
+
+services:
+  langgraph-playground:
+    build: .
+    container_name: langgraph-playground
+    ports:
+      - "2024:2024"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ROOT_PATH=/langgraphplayground  # ← Critical for nginx!
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    restart: unless-stopped
+```
+
+**When to Use ROOT_PATH:**
+
+| Deployment Type | ROOT_PATH Value | Example URL |
+|-----------------|-----------------|-------------|
+| **Direct Access** | Not needed or `/` | `http://localhost:2024/` |
+| **Nginx Root Path** | Not needed or `/` | `https://domain.com/` → `localhost:2024/` |
+| **Nginx Subpath** | `/your-path` | `https://domain.com/your-path/` → `localhost:2024/` |
+
+**Common Mistake:**
+
+```yaml
+# ❌ WRONG: No ROOT_PATH set
+environment:
+  - PYTHONUNBUFFERED=1
+# Result: UI loads but all links are broken, static files 404
+
+# ✅ CORRECT: ROOT_PATH matches nginx location
+environment:
+  - PYTHONUNBUFFERED=1
+  - ROOT_PATH=/langgraphplayground
+# Result: Everything works perfectly
+```
+
+**Testing ROOT_PATH Configuration:**
+
+```bash
+# 1. Start container with ROOT_PATH
+docker-compose up -d
+
+# 2. Check the app knows its path
+curl http://localhost:2024/openapi.json | grep "servers"
+# Should show: "servers": [{"url": "/langgraphplayground"}]
+
+# 3. Test through nginx
+curl https://your-domain/langgraphplayground/health
+# Should return: {"status": "ok"}
+
+# 4. Check browser console
+# Open: https://your-domain/langgraphplayground/
+# Static files should load from: /langgraphplayground/static/...
+```
+
+**What ROOT_PATH Does Internally:**
+
+FastAPI uses `root_path` parameter (set via `ROOT_PATH` env var) to:
+1. **Mount application** at the specified path prefix
+2. **Generate OpenAPI docs** with correct server URL
+3. **Resolve static files** with path prefix
+4. **Create redirects** with correct base path
+5. **Build WebSocket URLs** with prefix included
+
+**Read More:**
+- [FastAPI Behind a Proxy](https://fastapi.tiangolo.com/advanced/behind-a-proxy/)
+- [FastAPI root_path Documentation](https://fastapi.tiangolo.com/reference/fastapi/#fastapi.FastAPI--root_path)
+
+#### Build and Deploy Commands
+
 ```bash
 # Build and start
 docker-compose up -d
