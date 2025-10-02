@@ -413,6 +413,170 @@ async def get_graph_info():
     }
 
 
+@app.get("/graph/nodes")
+async def get_graph_nodes():
+    """Get detailed information about all graph nodes."""
+    return {
+        "nodes": [
+            {
+                "id": "START",
+                "name": "START",
+                "type": "entry",
+                "description": "Entry point of the graph",
+                "edges_to": ["agent"],
+                "can_interrupt": False
+            },
+            {
+                "id": "agent",
+                "name": "agent",
+                "type": "function",
+                "description": "Calls the LLM (AWS Bedrock Nova Lite) to generate responses and detect tool calls using NLP parsing",
+                "edges_to": ["tools", "END"],
+                "edges_conditional": True,
+                "can_interrupt": False
+            },
+            {
+                "id": "tools",
+                "name": "tools",
+                "type": "function",
+                "description": "Executes tools (search, calculator, travel budget) after human approval",
+                "edges_to": ["agent"],
+                "can_interrupt": True,
+                "interrupt_before": True
+            },
+            {
+                "id": "END",
+                "name": "END",
+                "type": "exit",
+                "description": "End of graph execution",
+                "edges_to": [],
+                "can_interrupt": False
+            }
+        ],
+        "edges": [
+            {
+                "from": "START",
+                "to": "agent",
+                "conditional": False,
+                "description": "Initial invocation"
+            },
+            {
+                "from": "agent",
+                "to": "tools",
+                "conditional": True,
+                "description": "When tool calls are detected"
+            },
+            {
+                "from": "agent",
+                "to": "END",
+                "conditional": True,
+                "description": "When no tool calls are needed"
+            },
+            {
+                "from": "tools",
+                "to": "agent",
+                "conditional": False,
+                "description": "After tool execution, return to agent"
+            }
+        ],
+        "entry_point": "agent",
+        "interrupt_before": ["tools"],
+        "checkpointer": "MemorySaver",
+        "state_schema": {
+            "messages": {
+                "type": "list",
+                "description": "Conversation messages (HumanMessage, AIMessage, ToolMessage)",
+                "required": True
+            }
+        }
+    }
+
+
+@app.get("/threads/{thread_id}/state/fields")
+async def get_state_fields(thread_id: str):
+    """Get available state fields and their current values."""
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    try:
+        state = graph.get_state(config)
+        
+        if not state.values:
+            raise HTTPException(status_code=404, detail="Thread state not found")
+        
+        # Parse messages for display
+        messages_detail = []
+        for msg in state.values.get("messages", []):
+            msg_dict = {
+                "type": type(msg).__name__,
+                "content": msg.content if hasattr(msg, "content") else str(msg),
+            }
+            
+            # Add tool_calls if present
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                msg_dict["tool_calls"] = msg.tool_calls
+            
+            # Add tool call id if present
+            if hasattr(msg, "tool_call_id") and msg.tool_call_id:
+                msg_dict["tool_call_id"] = msg.tool_call_id
+            
+            messages_detail.append(msg_dict)
+        
+        return {
+            "thread_id": thread_id,
+            "fields": {
+                "messages": {
+                    "type": "list[Message]",
+                    "count": len(state.values.get("messages", [])),
+                    "editable": True,
+                    "description": "Conversation history including human, AI, and tool messages",
+                    "value": messages_detail
+                }
+            },
+            "metadata": {
+                "next": state.next,
+                "checkpoint_id": state.config.get("configurable", {}).get("checkpoint_id"),
+                "parent_checkpoint_id": state.parent_config.get("configurable", {}).get("checkpoint_id") if state.parent_config else None
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Error getting state fields: {str(e)}")
+
+
+@app.post("/threads/{thread_id}/state/update")
+async def update_state_fields(thread_id: str, state_update: Dict[str, Any]):
+    """Allow users to manually edit graph state fields."""
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    try:
+        # Get current state
+        current_state = graph.get_state(config)
+        
+        if not current_state.values:
+            raise HTTPException(status_code=404, detail="Thread state not found")
+        
+        # Update state with new values
+        graph.update_state(config, state_update)
+        
+        # Get updated state
+        updated_state = graph.get_state(config)
+        
+        return {
+            "status": "updated",
+            "thread_id": thread_id,
+            "updates_applied": state_update,
+            "current_state": {
+                "messages_count": len(updated_state.values.get("messages", [])),
+                "next": updated_state.next
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating state: {str(e)}")
+
+
 # Root endpoint - serve React SPA
 # This MUST be defined AFTER all API routes to avoid catching API calls
 @app.get("/")

@@ -6,6 +6,10 @@ import type {
   ResumeInput,
   CheckpointHistory,
   GraphInfo,
+  GraphNodesResponse,
+  StateFieldsResponse,
+  StateUpdateRequest,
+  StateUpdateResponse,
   HealthResponse,
 } from '../types/api';
 
@@ -109,5 +113,24 @@ export const api = {
   // Graph information
   async getGraphInfo(): Promise<GraphInfo> {
     return apiFetch<GraphInfo>('/graph/info');
+  },
+  
+  async getGraphNodes(): Promise<GraphNodesResponse> {
+    return apiFetch<GraphNodesResponse>('/graph/nodes');
+  },
+  
+  // State management
+  async getStateFields(threadId: string): Promise<StateFieldsResponse> {
+    return apiFetch<StateFieldsResponse>(`/threads/${threadId}/state/fields`);
+  },
+  
+  async updateStateFields(
+    threadId: string,
+    stateUpdate: StateUpdateRequest
+  ): Promise<StateUpdateResponse> {
+    return apiFetch<StateUpdateResponse>(`/threads/${threadId}/state/update`, {
+      method: 'POST',
+      body: JSON.stringify(stateUpdate),
+    });
   },
 };

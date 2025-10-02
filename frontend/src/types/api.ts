@@ -74,6 +74,73 @@ export interface GraphInfo {
   checkpointer: string;
 }
 
+export interface GraphNode {
+  id: string;
+  name: string;
+  type: 'entry' | 'exit' | 'function' | 'interrupt';
+  description: string;
+  edges_to: string[];
+  edges_conditional?: boolean;
+  can_interrupt: boolean;
+  interrupt_before?: boolean;
+}
+
+export interface GraphEdge {
+  from: string;
+  to: string;
+  conditional: boolean;
+  description: string;
+}
+
+export interface GraphNodesResponse {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  entry_point: string;
+  interrupt_before: string[];
+  checkpointer: string;
+  state_schema: {
+    [key: string]: {
+      type: string;
+      description: string;
+      required: boolean;
+    };
+  };
+}
+
+export interface StateField {
+  type: string;
+  count?: number;
+  editable: boolean;
+  description: string;
+  value: any;
+}
+
+export interface StateFieldsResponse {
+  thread_id: string;
+  fields: {
+    [key: string]: StateField;
+  };
+  metadata: {
+    next: string[] | null;
+    checkpoint_id: string | null;
+    parent_checkpoint_id: string | null;
+  };
+}
+
+export interface StateUpdateRequest {
+  [key: string]: any;
+}
+
+export interface StateUpdateResponse {
+  status: string;
+  thread_id: string;
+  updates_applied: StateUpdateRequest;
+  current_state: {
+    messages_count: number;
+    next: string[] | null;
+  };
+}
+
 export interface HealthResponse {
   status: string;
   service: string;
