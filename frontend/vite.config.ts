@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   
-  // ✅ Use root path - FastAPI handles the /langgraphplayground/ prefix via ROOT_PATH
-  base: '/',
+  // ✅ Set base to match nginx location path
+  base: '/langgraphplayground/',
   
   // Development server configuration
   server: {
