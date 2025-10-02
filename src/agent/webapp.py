@@ -416,7 +416,9 @@ async def get_graph_info():
 # Mount static files for vanilla UI (for compatibility)
 ui_dir = os.path.join(os.path.dirname(__file__), "..", "ui")
 if os.path.exists(ui_dir):
-    app.mount("/static", StaticFiles(directory=ui_dir), name="static")
+    # Mount at ROOT_PATH + /static to match asset mounting pattern
+    static_mount_path = f"{ROOT_PATH}/static" if ROOT_PATH else "/static"
+    app.mount(static_mount_path, StaticFiles(directory=ui_dir), name="static")
 
 
 # Root endpoint - serve React SPA or fallback to vanilla UI
@@ -442,16 +444,20 @@ async def root():
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     """Serve React SPA for all unmatched routes (enables client-side routing)."""
-    # Remove ROOT_PATH prefix if present (nginx already handled it)
+    # Remove ROOT_PATH prefix if present (for direct access without nginx)
     if ROOT_PATH and full_path.startswith(ROOT_PATH.lstrip("/")):
         full_path = full_path[len(ROOT_PATH.lstrip("/")):]
     
+    # Clean up leading slash
+    if full_path.startswith("/"):
+        full_path = full_path[1:]
+    
     # Skip if it's an API route (these are already defined above)
-    if full_path.startswith(("threads", "runs", "graph", "health", "docs", "openapi.json")):
+    if full_path.startswith(("threads", "runs", "graph", "health", "docs", "openapi.json", "static")):
         raise HTTPException(status_code=404, detail="Not found")
     
     # Skip if it's a static asset (let the mount handle it)
-    if "assets/" in full_path:
+    if "assets/" in full_path or "static/" in full_path:
         raise HTTPException(status_code=404, detail="Asset not found")
     
     # Serve React index.html for all other routes
