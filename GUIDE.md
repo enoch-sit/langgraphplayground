@@ -10,11 +10,12 @@
 2. [What This Is](#-what-this-is)
 3. [Architecture](#-architecture)
 4. [Setup & Installation](#-setup--installation)
-5. [Deployment](#-deployment)
-6. [How It Works](#-how-it-works)
-7. [API Reference](#-api-reference)
-8. [Troubleshooting](#-troubleshooting)
-9. [Customization](#-customization)
+5. [React Frontend (Optional)](#-react-frontend-optional)
+6. [Deployment](#-deployment)
+7. [How It Works](#-how-it-works)
+8. [API Reference](#-api-reference)
+9. [Troubleshooting](#-troubleshooting)
+10. [Customization](#-customization)
 
 ---
 
@@ -208,11 +209,455 @@ You should see the LangGraph Playground interface!
 
 ---
 
+## ⚛️ React Frontend (Optional)
+
+The playground includes an **optional React + TypeScript frontend** as an alternative to the vanilla JavaScript UI. Both versions provide the same functionality!
+
+### Why Use the React Version?
+
+| Feature | Vanilla JS (Default) | React + TypeScript |
+|---------|---------------------|-------------------|
+| **Setup complexity** | ✅ None (single HTML) | ⚠️ Requires npm install |
+| **Type safety** | ❌ None | ✅ Full TypeScript |
+| **Code organization** | ⚠️ 500+ lines in 1 file | ✅ Split into components |
+| **Developer experience** | ⚠️ Basic | ✅ Excellent (HMR, IntelliSense) |
+| **Maintainability** | ⚠️ Gets messy at scale | ✅ Scales well |
+| **Build size** | ✅ ~50KB | ⚠️ ~150KB (minified) |
+| **Base path handling** | ✅ Runtime detection | ✅ FastAPI handles it |
+| **Production ready** | ✅ Works out of the box | ✅ After `npm run build` |
+
+**Recommendation:**
+- **Stick with vanilla JS** if you want simplicity and minimal dependencies
+- **Use React** if you plan to extend the UI or prefer modern tooling
+
+### React Setup (Quick Start)
+
+#### Windows
+```bash
+setup-react.bat
+```
+
+#### Linux/Mac
+```bash
+chmod +x setup-react.sh
+./setup-react.sh
+```
+
+#### Manual Setup
+```bash
+cd frontend
+npm install
+```
+
+### Development Workflow
+
+**Terminal 1: Backend (FastAPI)**
+```bash
+uvicorn src.agent.webapp:app --port 2024 --reload
+```
+
+**Terminal 2: Frontend (React)**
+```bash
+cd frontend
+npm run dev
+```
+
+Access at: http://localhost:3000
+
+**How it works:**
+- React runs on port 3000
+- Vite proxies API calls to port 2024
+- Hot Module Replacement for instant updates
+
+### Production Build
+
+```bash
+# 1. Build React frontend
+cd frontend
+npm run build
+
+# 2. Run FastAPI (serves React + API on single port)
+cd ..
+uvicorn src.agent.webapp:app --host 0.0.0.0 --port 2024
+```
+
+**Production flow:**
+```
+Browser → Port 2024
+   ↓
+FastAPI serves:
+  - React build (/, /assets/*)
+  - API endpoints (/threads, /runs, etc.)
+```
+
+### Base Path Handling (BULLETPROOF! 🎯)
+
+**The Problem You Experienced:**
+```
+/langgraphplayground/assets/index.js → 404 Error ❌
+```
+
+**Our Solution:**
+
+1. **Vite builds with `base: '/'`** (no complex paths)
+2. **FastAPI serves everything** (React + API)
+3. **FastAPI uses `ROOT_PATH` env var** (handles nginx subpath)
+4. **Nginx just proxies** (no rewrites!)
+
+**Result:**
+```
+Browser: https://domain.com/langgraphplayground/assets/main.js
+   ↓
+Nginx: proxy_pass to localhost:2024/assets/main.js
+   ↓
+FastAPI: serves from frontend/dist/assets/main.js
+   ↓
+✅ WORKS! No path confusion!
+```
+
+**Configuration:**
+
+`frontend/vite.config.ts`:
+```typescript
+export default defineConfig({
+  base: '/',  // ✅ Simple! FastAPI handles the rest
+  server: {
+    port: 3000,
+    proxy: {
+      '/threads': 'http://localhost:2024',
+      '/runs': 'http://localhost:2024',
+      // ... other endpoints
+    }
+  }
+})
+```
+
+`docker-compose.yml` or `.env`:
+```yaml
+environment:
+  - ROOT_PATH=/langgraphplayground  # ✅ FastAPI knows its base path
+```
+
+**Why This Works:**
+- ✅ **No Vite base path complexity** (always builds with `/`)
+- ✅ **No nginx rewrite confusion** (just proxy)
+- ✅ **FastAPI handles everything** (single source of truth)
+- ✅ **Works locally and in production** (same build)
+
+### React Project Structure
+
+```
+frontend/
+├── src/
+│   ├── api/
+│   │   └── client.ts         # Typed API client
+│   ├── types/
+│   │   └── api.ts            # TypeScript interfaces
+│   ├── App.tsx               # Main component
+│   ├── main.tsx              # Entry point
+│   └── index.css             # Styles
+├── vite.config.ts            # Vite configuration
+├── tsconfig.json             # TypeScript config
+└── package.json              # Dependencies
+```
+
+### TypeScript Benefits
+
+**Type-safe API calls:**
+```typescript
+// ✅ IntelliSense knows the response shape
+const response = await api.invokeAgent({
+  thread_id: "abc-123",
+  message: "Search for hotels",
+  use_hitl: true
+});
+
+// ✅ TypeScript prevents errors
+if (response.status === 'interrupted') {
+  // response.tool_calls is available here
+}
+```
+
+**Compile-time error catching:**
+```typescript
+// ❌ TypeScript error: Property 'invalid' does not exist
+api.createThread({ invalid: "field" });
+
+// ✅ Correct
+api.createThread({ thread_id: "custom-id" });
+```
+
+### Switching Between UIs
+
+**To use vanilla JS (default):**
+1. Don't build React (or delete `frontend/dist/`)
+2. Start FastAPI
+3. Access http://localhost:2024
+
+**To use React:**
+1. Build React: `cd frontend && npm run build`
+2. Start FastAPI
+3. Access http://localhost:2024
+
+**FastAPI automatically chooses:**
+```python
+# Check if React build exists
+if os.path.exists("frontend/dist/index.html"):
+    return FileResponse("frontend/dist/index.html")  # React
+else:
+    return FileResponse("src/ui/index.html")  # Vanilla JS
+```
+
+### React Development Tips
+
+**Hot Module Replacement (HMR):**
+- Edit `App.tsx` → see changes instantly
+- No page refresh needed
+- State is preserved
+
+**TypeScript IntelliSense:**
+- Hover over functions to see types
+- Auto-complete API methods
+- Refactor with confidence
+
+**Component Development:**
+- Extract reusable components
+- Props are type-checked
+- Easy to test
+
+**Building for Production:**
+```bash
+cd frontend
+npm run build
+
+# Output:
+# frontend/dist/
+#   ├── index.html
+#   ├── assets/
+#   │   ├── index-abc123.js
+#   │   └── index-xyz789.css
+```
+
+### Troubleshooting React
+
+#### Port 3000 already in use
+```bash
+# Edit frontend/vite.config.ts
+server: {
+  port: 3001,  // Change to any available port
+}
+```
+
+#### npm install fails
+```bash
+# Clear cache and retry
+npm cache clean --force
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+#### React build not showing
+```bash
+# Verify build exists
+ls frontend/dist/
+
+# If empty, rebuild
+cd frontend
+npm run build
+
+# Restart FastAPI
+uvicorn src.agent.webapp:app --port 2024 --reload
+```
+
+#### TypeScript errors
+```bash
+# Install dependencies
+cd frontend
+npm install
+
+# Check TypeScript
+npm run build
+```
+
+---
+
 ## 🚀 Deployment
 
-### Production with Nginx
+### Local Development (Already Working!)
 
-#### Understanding the Nginx Configuration
+You've confirmed Docker works locally:
+```bash
+docker-compose up -d
+```
+
+Access at: http://localhost:2024 ✅
+
+---
+
+### Production Deployment Guide
+
+#### Prerequisites
+
+**Server Requirements:**
+- Ubuntu/Debian Linux server
+- Docker & Docker Compose installed
+- Nginx installed (for reverse proxy)
+- SSL certificate (optional but recommended)
+- Ports 80, 443 open (firewall configured)
+
+**Credentials Needed:**
+- AWS Access Key & Secret (Bedrock access)
+- Tavily API key
+- Domain name (for nginx configuration)
+
+#### Step 1: Server Setup
+
+**1.1 Install Docker (if not installed):**
+```bash
+# Update package list
+sudo apt update
+
+# Install Docker
+sudo apt install -y docker.io docker-compose
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+**1.2 Install Nginx (if not installed):**
+```bash
+sudo apt install -y nginx
+```
+
+**1.3 Clone Repository:**
+```bash
+# SSH into server
+ssh user@your-server-ip
+
+# Clone repo
+git clone https://github.com/yourusername/langgraphplayground.git
+cd langgraphplayground
+```
+
+#### Step 2: Configure Environment
+
+**2.1 Create Production .env:**
+```bash
+# Copy template
+cp .env.example .env
+
+# Edit with production credentials
+nano .env
+```
+
+**2.2 Production .env Contents:**
+```env
+# AWS Bedrock Configuration
+AWS_ACCESS_KEY_ID=your_production_access_key
+AWS_SECRET_ACCESS_KEY=your_production_secret_key
+AWS_REGION=us-east-1
+
+# Tavily API Key
+TAVILY_API_KEY=your_production_tavily_key
+
+# Model Configuration
+AWS_BEDROCK_MODEL=amazon.nova-lite-v1:0
+MODEL_TEMPERATURE=0.3
+MODEL_MAX_TOKENS=4096
+
+# Production Settings
+ROOT_PATH=/langgraphplayground  # Important for nginx subpath!
+LOG_LEVEL=INFO
+```
+
+**2.3 Secure .env File:**
+```bash
+chmod 600 .env
+```
+
+#### Step 3: Deploy with Docker
+
+**3.1 Build and Start Containers:**
+```bash
+# Stop any existing containers
+docker-compose down
+
+# Build with fresh image (no cache)
+docker-compose build --no-cache
+
+# Start in detached mode
+docker-compose up -d
+```
+
+**3.2 Verify Container is Running:**
+```bash
+# Check container status
+docker-compose ps
+
+# Should show:
+# NAME                    STATUS
+# langgraph-playground    Up (healthy)
+
+# Check logs
+docker-compose logs -f
+
+# Test health endpoint
+curl http://localhost:2024/health
+# Should return: {"status":"healthy","service":"langgraph-playground"}
+```
+
+**3.3 Production docker-compose.yml Features:**
+```yaml
+version: '3.8'
+
+services:
+  langgraph-playground:
+    build: .
+    container_name: langgraph-playground
+    ports:
+      - "127.0.0.1:2024:2024"  # ← Bind to localhost only (security)
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ROOT_PATH=/langgraphplayground  # ← Critical for nginx!
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    
+    # Health check (auto-restart if unhealthy)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2024/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Log rotation
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+#### Step 4: Configure Nginx
+
+**4.1 Understanding the Nginx Configuration**
 
 This setup uses **two configuration files** to make nginx handle both regular HTTP requests and WebSocket/streaming connections properly.
 
@@ -576,27 +1021,54 @@ FastAPI uses `root_path` parameter (set via `ROOT_PATH` env var) to:
 - [FastAPI Behind a Proxy](https://fastapi.tiangolo.com/advanced/behind-a-proxy/)
 - [FastAPI root_path Documentation](https://fastapi.tiangolo.com/reference/fastapi/#fastapi.FastAPI--root_path)
 
-#### Build and Deploy Commands
+---
+
+### Complete Production Deployment Summary
+
+**What's Included:**
+- ✅ Health checks (auto-restart on failure)
+- ✅ Resource limits (2 CPU, 2GB RAM)
+- ✅ Log rotation (10MB max, 3 files)
+- ✅ Security hardening (localhost binding, SSL ready)
+- ✅ WebSocket support (for streaming)
+- ✅ Static asset caching (1 year)
+- ✅ Automated deployment script
+- ✅ Comprehensive monitoring
+- ✅ Cross-platform compatibility (build Windows, deploy Linux)
+
+**Quick Production Deploy:**
 
 ```bash
-# Build and start
-docker-compose up -d
+# 1. Clone repository
+git clone https://github.com/yourusername/langgraphplayground.git
+cd langgraphplayground
 
-# View logs
-docker-compose logs -f
+# 2. Create .env with production credentials
+cp .env.example .env
+nano .env  # Add AWS and Tavily keys, set ROOT_PATH=/langgraphplayground
 
-# Stop
-docker-compose down
+# 3. Deploy
+chmod +x deploy-production.sh
+./deploy-production.sh
+
+# 4. Configure nginx (see Step 4 above)
+sudo nano /etc/nginx/nginx.conf  # Add WebSocket map
+sudo nano /etc/nginx/sites-available/langgraph  # Add site config
+sudo ln -s /etc/nginx/sites-available/langgraph /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# 5. Get SSL certificate
+sudo certbot --nginx -d your-domain.com
 ```
 
-### Port Isolation
-
-The playground uses **port 2024** exclusively. This ensures:
-- ✅ No conflicts with other services (e.g., Flowise on 3000)
-- ✅ Easy to proxy via nginx
-- ✅ Can run alongside any existing applications
+**Access:**
+- Production: `https://your-domain.com/langgraphplayground/`
+- Health: `https://your-domain.com/langgraphplayground/health`
+- API Docs: `https://your-domain.com/langgraphplayground/docs`
 
 ---
+
+
 
 ## 💡 How It Works
 

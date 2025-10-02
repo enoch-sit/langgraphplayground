@@ -66,14 +66,15 @@ class CheckpointRewind(BaseModel):
     checkpoint_id: str
 
 
-# Root endpoint - serve UI
-@app.get("/")
-async def root():
-    """Serve the playground UI."""
-    ui_path = os.path.join(os.path.dirname(__file__), "..", "ui", "index.html")
-    if os.path.exists(ui_path):
-        return FileResponse(ui_path)
-    return {"message": "LangGraph Playground API", "docs": "/docs"}
+# Serve React build (production) or fallback to vanilla UI (development)
+REACT_BUILD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+VANILLA_UI_PATH = os.path.join(os.path.dirname(__file__), "..", "ui", "index.html")
+
+# Mount React static assets if build exists
+if os.path.exists(REACT_BUILD_DIR):
+    assets_dir = os.path.join(REACT_BUILD_DIR, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 
 @app.get("/health")
@@ -407,10 +408,47 @@ async def get_graph_info():
     }
 
 
-# Mount static files for UI
+# Mount static files for vanilla UI (for compatibility)
 ui_dir = os.path.join(os.path.dirname(__file__), "..", "ui")
 if os.path.exists(ui_dir):
     app.mount("/static", StaticFiles(directory=ui_dir), name="static")
+
+
+# Root endpoint - serve React SPA or fallback to vanilla UI
+# This MUST be defined AFTER all API routes to avoid catching API calls
+@app.get("/")
+async def root():
+    """Serve the playground UI (React if built, otherwise vanilla HTML)."""
+    # Try React build first
+    if os.path.exists(REACT_BUILD_DIR):
+        react_index = os.path.join(REACT_BUILD_DIR, "index.html")
+        if os.path.exists(react_index):
+            return FileResponse(react_index)
+    
+    # Fallback to vanilla UI
+    if os.path.exists(VANILLA_UI_PATH):
+        return FileResponse(VANILLA_UI_PATH)
+    
+    return {"message": "LangGraph Playground API", "docs": "/docs"}
+
+
+# Catch-all route for React Router (SPA)
+# This allows React Router to handle client-side routing
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """Serve React SPA for all unmatched routes (enables client-side routing)."""
+    # Skip if it's an API route (these are already defined above)
+    if full_path.startswith(("threads", "runs", "graph", "health", "docs", "openapi.json")):
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    # Serve React index.html for all other routes
+    if os.path.exists(REACT_BUILD_DIR):
+        react_index = os.path.join(REACT_BUILD_DIR, "index.html")
+        if os.path.exists(react_index):
+            return FileResponse(react_index)
+    
+    # If React build doesn't exist, return 404
+    raise HTTPException(status_code=404, detail="Frontend not built")
 
 
 if __name__ == "__main__":

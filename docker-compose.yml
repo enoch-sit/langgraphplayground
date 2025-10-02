@@ -2,19 +2,52 @@ version: '3.8'
 
 services:
   langgraph-playground:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: langgraph-playground
     ports:
-      - "2024:2024"
+      # Production: Bind to localhost only (nginx will proxy)
+      # Development: Use "2024:2024" for direct access
+      - "127.0.0.1:2024:2024"
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - ROOT_PATH=/langgraphplayground
+      - ROOT_PATH=/langgraphplayground  # Change to "/" for root path deployment
     volumes:
-      - ./src:/app/src
-      - ./data:/app/data  # For persistent storage if needed
+      # Development: Mount source for hot reload
+      # Production: Comment out src mount, keep data only
+      # - ./src:/app/src
+      - ./data:/app/data
+      - ./logs:/app/logs
     restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2024/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits (production)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
     networks:
       - langgraph-net
 
