@@ -80,23 +80,23 @@ AWS Bedrock Nova Lite doesn't support native tool calling (structured outputs). 
                   ▼
 ┌──────────────────────────────────────────────────┐
 │      FastAPI Server (Port 2024)                  │
-│  ┌────────────────────────────────────────────┐ │
-│  │ Routes:                                    │ │
-│  │  GET  /           → UI (index.html)       │ │
-│  │  GET  /docs       → API Documentation     │ │
-│  │  POST /threads    → Thread Management     │ │
-│  │  POST /runs/*     → Agent Execution       │ │
-│  │  GET  /graph/info → Graph Structure       │ │
-│  └────────────────────────────────────────────┘ │
+│  ┌────────────────────────────────────────────┐  │
+│  │ Routes:                                    │  │
+│  │  GET  /           → UI (index.html)        │  │
+│  │  GET  /docs       → API Documentation      │  │
+│  │  POST /threads    → Thread Management      │  │
+│  │  POST /runs/*     → Agent Execution        │  │
+│  │  GET  /graph/info → Graph Structure        │  │
+│  └────────────────────────────────────────────┘  │
 │                                                  │
-│  ┌────────────────────────────────────────────┐ │
-│  │ LangGraph Agent:                           │ │
-│  │  • Call Model (AWS Bedrock Nova Lite)     │ │
-│  │  • Parse Tool Calls (NLP Detection)       │ │
-│  │  • Interrupt for HITL                     │ │
-│  │  • Execute Tools                          │ │
-│  │  • State Persistence (MemorySaver)        │ │
-│  └────────────────────────────────────────────┘ │
+│  ┌────────────────────────────────────────────┐  │
+│  │ LangGraph Agent:                           │  │
+│  │  • Call Model (AWS Bedrock Nova Lite)      │  │
+│  │  • Parse Tool Calls (NLP Detection)        │  │
+│  │  • Interrupt for HITL                      │  │
+│  │  • Execute Tools                           │  │
+│  │  • State Persistence (MemorySaver)         │  │
+│  └────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────┘
          │                      │
          ▼                      ▼
@@ -212,18 +212,114 @@ You should see the LangGraph Playground interface!
 
 ### Production with Nginx
 
+#### Understanding the Nginx Configuration
+
+This setup uses **two configuration files** to make nginx handle both regular HTTP requests and WebSocket/streaming connections properly.
+
+##### Why Two Files?
+
+**1. Main Config (`/etc/nginx/nginx.conf`)** - Defines global variables
+```nginx
+http {
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+}
+```
+
+**Purpose:** Creates a smart variable that:
+- Sets `Connection: upgrade` when client requests WebSocket/streaming
+- Sets `Connection: close` for regular HTTP requests
+- Makes nginx handle **both** connection types correctly
+
+**Why it's needed:**
+- The `map` directive can **only** be in the `http` block (nginx requirement)
+- Once defined here, all your sites can use `$connection_upgrade`
+- Without it: you'd hardcode `Connection: "upgrade"` for ALL requests (incorrect!)
+- With it: nginx is smart about when to upgrade connections
+
+**Why in nginx.conf specifically?**
+- Location blocks are independent - variables defined here are available globally
+- Flowise on port 3000 and LangGraph on port 2024 are completely isolated
+- Each location block uses its own proxy headers
+- No interference between services
+
+**2. Site Config (`/etc/nginx/sites-available/your-site`)** - Uses the variable
+```nginx
+location /langgraphplayground/ {
+    proxy_set_header Connection $connection_upgrade;  # ← Uses the variable
+}
+```
+
+**Purpose:** Each location block applies the variable to its specific routes.
+
+##### How It Works
+
+| Request Type | `$http_upgrade` | `$connection_upgrade` | Result |
+|--------------|-----------------|----------------------|--------|
+| Regular HTTP | `""` (empty) | `"close"` | Normal connection ✅ |
+| WebSocket/SSE | `"websocket"` | `"upgrade"` | Upgraded connection ✅ |
+
+**Request Flow:**
+```
+Browser → Regular API call
+  ↓
+nginx: $http_upgrade = "" → $connection_upgrade = "close"
+  ↓
+FastAPI: Normal HTTP response ✅
+
+Browser → Streaming request
+  ↓
+nginx: $http_upgrade = "websocket" → $connection_upgrade = "upgrade"
+  ↓
+FastAPI: Upgraded connection for streaming ✅
+```
+
 #### Your Server Setup
 
 If you have Flowise or other apps running, you can add LangGraph alongside them:
 
-```nginx
-# Add this to /etc/nginx/nginx.conf in the http block
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    '' close;
-}
+**Step 1: Edit Main Nginx Config**
 
-# Add this to /etc/nginx/sites-available/your-site
+```bash
+sudo nano /etc/nginx/nginx.conf
+```
+
+Add the WebSocket mapping in the `http` block (typically after basic settings, before includes):
+
+```nginx
+http {
+    ##
+    # Basic Settings
+    ##
+    sendfile on;
+    tcp_nopush on;
+    
+    ##
+    # WebSocket Support (ADD THIS)
+    ##
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+    
+    ##
+    # Virtual Host Configs
+    ##
+    include /etc/nginx/sites-enabled/*;
+}
+```
+
+**Step 2: Edit Your Site Config**
+
+```bash
+sudo nano /etc/nginx/sites-available/your-site
+```
+
+Add the LangGraph location block:
+
+```nginx
 server {
     listen 443 ssl;
     server_name your-domain.com;
@@ -236,7 +332,7 @@ server {
         proxy_pass http://localhost:2024/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Connection $connection_upgrade;  # ← Uses the variable
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -250,10 +346,109 @@ server {
     # Your other apps (e.g., Flowise)
     location / {
         proxy_pass http://localhost:3000;
-        # ... other config ...
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;  # ← Optional: use variable here too
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
+
+#### WebSocket Security: WS vs WSS
+
+**Understanding WebSocket Protocols:**
+
+| Protocol | Port | Encryption | URL Scheme | Use Case |
+|----------|------|------------|------------|----------|
+| **WS** | 80 | ❌ None | `ws://` | Development only |
+| **WSS** | 443 | ✅ SSL/TLS | `wss://` | **Production (required)** |
+
+**How WebSocket Upgrades Work:**
+
+1. **Browser initiates HTTP(S) request:**
+   ```
+   GET /api/stream HTTP/1.1
+   Upgrade: websocket
+   Connection: Upgrade
+   ```
+
+2. **Server responds with 101 Switching Protocols:**
+   ```
+   HTTP/1.1 101 Switching Protocols
+   Upgrade: websocket
+   Connection: Upgrade
+   ```
+
+3. **Connection becomes WebSocket:**
+   - If started with `https://` → becomes `wss://` (encrypted) ✅
+   - If started with `http://` → becomes `ws://` (unencrypted) ⚠️
+
+**Production Architecture (Your Setup):**
+
+```
+Browser → WSS (encrypted) → Nginx:443 → WS (localhost) → FastAPI:2024
+          🔒 SSL/TLS              ↓ SSL termination    ↓ No encryption needed
+          TLS 1.2/1.3             (decrypts here)      (localhost is safe)
+```
+
+**Why WSS is Secure:**
+- **Same encryption as HTTPS**: Uses SSL/TLS 1.2/1.3 with strong ciphers
+- **Certificate validation**: Browser verifies server certificate
+- **Encrypted data**: All messages encrypted end-to-end from browser to nginx
+- **Localhost unencrypted**: nginx → FastAPI connection is unencrypted, but it's on localhost (same machine), which is safe
+
+**Your SSL/TLS Configuration:**
+```nginx
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers HIGH:!aNULL:!MD5;
+ssl_certificate /etc/letsencrypt/live/dept-wildcard.eduhk/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/dept-wildcard.eduhk/privkey.pem;
+```
+
+**Why WebSocket Instead of SSE?**
+
+This project uses **WebSocket (WS/WSS)** instead of **Server-Sent Events (SSE)** because:
+
+| Feature | WebSocket | SSE |
+|---------|-----------|-----|
+| **Direction** | ✅ **Bidirectional** | ❌ Unidirectional (server → client only) |
+| **HITL Support** | ✅ Client can send approval/modifications | ❌ Client can't respond during stream |
+| **Interactive Chat** | ✅ Both parties send anytime | ❌ Only server pushes |
+| **State Control** | ✅ Client can send commands | ❌ Read-only for client |
+| **Use Case** | Chat, gaming, collaboration | Notifications, logs, tickers |
+
+**Why LangGraph Needs WebSocket:**
+1. **Human-in-the-Loop (HITL)**: Users must approve/modify tool calls → requires sending data back during streaming
+2. **Interactive conversation**: Bidirectional chat flow where users can interrupt or provide input
+3. **State updates**: Client can send commands to control graph state
+4. **Real-time collaboration**: Both agent and human actively participate
+
+SSE would only work for simple "display streaming responses" where the client never sends data back during the stream. For interactive agents with HITL, WebSocket is the correct choice.
+
+#### Key Configuration Details
+
+**Location Order Matters:**
+```nginx
+location /langgraphplayground/ { }  # ← Specific path (matches FIRST)
+location / { }                       # ← Catch-all (matches LAST)
+```
+
+Nginx checks specific paths before catch-all, ensuring proper routing.
+
+**Port Isolation:**
+- LangGraph: `localhost:2024` (isolated)
+- Flowise: `localhost:3000` (isolated)
+- No conflicts possible!
+
+**Headers Explained:**
+- `Upgrade: $http_upgrade` - Passes client's upgrade request
+- `Connection: $connection_upgrade` - Smart variable (upgrade or close)
+- `X-Forwarded-*` - Preserves original client info through proxy
+- `proxy_buffering off` - Required for streaming/SSE
+- `proxy_read_timeout 300s` - Allows long-running agent operations
 
 #### Apply Configuration
 
