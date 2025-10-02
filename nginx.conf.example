@@ -1,0 +1,56 @@
+# Nginx Configuration for LangGraph Playground
+# Add this to your nginx sites-available configuration
+#
+# ARCHITECTURE: FastAPI on port 2024 serves BOTH API and UI
+# - All API endpoints: /threads, /runs, /graph, etc.
+# - UI homepage: / (index.html)
+# - API documentation: /docs
+
+# Option 1: Serve at /langgraphplayground (recommended for shared servers)
+# Access: http://your-server.com/langgraphplayground
+
+location /langgraphplayground/ {
+    # Remove the /langgraphplayground prefix when proxying
+    rewrite ^/langgraphplayground/(.*) /$1 break;
+    
+    # Proxy to FastAPI on port 2024
+    proxy_pass http://localhost:2024/;
+    proxy_http_version 1.1;
+    
+    # WebSocket support for streaming endpoints
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    
+    # Standard proxy headers
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    
+    # Handle base path for JavaScript fetch calls
+    proxy_set_header X-Forwarded-Prefix /langgraphplayground;
+    
+    # Timeouts for long-running agent requests
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 75s;
+    
+    # Disable buffering for streaming responses (SSE)
+    proxy_buffering off;
+    proxy_cache off;
+}
+
+# Option 2: Serve at root (simpler, for dedicated domains)
+# Access: http://langgraph-playground.example.com
+
+# location / {
+#     proxy_pass http://localhost:2024;
+#     proxy_http_version 1.1;
+#     proxy_set_header Upgrade $http_upgrade;
+#     proxy_set_header Connection "upgrade";
+#     proxy_set_header Host $host;
+#     proxy_set_header X-Real-IP $remote_addr;
+#     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#     proxy_set_header X-Forwarded-Proto $scheme;
+#     proxy_read_timeout 300s;
+#     proxy_buffering off;
+# }

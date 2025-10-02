@@ -1,0 +1,188 @@
+# Gitignore for LangGraph Playground
+
+# ==========================================
+# Python
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ==========================================
+# Virtual Environments
+# ==========================================
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.virtualenv/
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env.local
+.env.*.local
+
+# Keep the example file
+!.env.example
+
+# AWS credentials (extra safety)
+*credentials*
+!requirements.txt
+credentials.json
+aws_credentials.json
+
+# API Keys (extra safety)
+*api_key*
+*api-key*
+*apikey*
+*.key
+*.pem
+
+# ==========================================
+# IDEs & Editors
+# ==========================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+
+# Vim/Emacs
+*.swp
+*.swo
+*~
+*.bak
+*~.nib
+
+# ==========================================
+# Jupyter Notebook
+# ==========================================
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+.jupyter/
+
+# ==========================================
+# LangGraph / LangChain / LangSmith
+# ==========================================
+.langchain/
+.langsmith/
+langgraph_storage/
+checkpoints/
+*.checkpoint
+
+# ==========================================
+# Data & Databases
+# ==========================================
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# Docker
+# ==========================================
+docker-compose.override.yml
+
+# ==========================================
+# Operating Systems
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE_BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+[Dd]esktop.ini
+
+# Linux
+.directory
+
+# ==========================================
+# Logs
+# ==========================================
+*.log
+*.log.*
+logs/
+
+# ==========================================
+# Temporary Files
+# ==========================================
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# ==========================================
+# Testing
+# ==========================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+coverage.xml
+*.cover
+.cache
+
+# ==========================================
+# Type Checking & Linting
+# ==========================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+.pyre/
+
+# ==========================================
+# Node (if you add JS tooling later)
+# ==========================================
+node_modules/
+package-lock.json
+yarn.lock
+.npm/
+.yarn/
+
+# ==========================================
+# Distribution / Packaging
+# ==========================================
+*.tar.gz
+*.zip
+*.whl
+*.dmg
