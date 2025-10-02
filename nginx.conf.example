@@ -6,6 +6,12 @@
 # - UI homepage: / (index.html)
 # - API documentation: /docs
 
+# IMPORTANT: Add WebSocket upgrade mapping to http block in main nginx.conf
+# map $http_upgrade $connection_upgrade {
+#     default upgrade;
+#     '' close;
+# }
+
 # Option 1: Serve at /langgraphplayground (recommended for shared servers)
 # Access: http://your-server.com/langgraphplayground
 
@@ -19,24 +25,30 @@ location /langgraphplayground/ {
     
     # WebSocket support for streaming endpoints
     proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
+    proxy_set_header Connection $connection_upgrade;
     
     # Standard proxy headers
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    
-    # Handle base path for JavaScript fetch calls
-    proxy_set_header X-Forwarded-Prefix /langgraphplayground;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
     
     # Timeouts for long-running agent requests
     proxy_read_timeout 300s;
     proxy_connect_timeout 75s;
+    proxy_send_timeout 300s;
     
     # Disable buffering for streaming responses (SSE)
     proxy_buffering off;
     proxy_cache off;
+    
+    # Allow chunked transfer encoding
+    chunked_transfer_encoding on;
+    
+    # Don't redirect
+    proxy_redirect off;
 }
 
 # Option 2: Serve at root (simpler, for dedicated domains)

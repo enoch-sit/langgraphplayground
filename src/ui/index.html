@@ -392,7 +392,23 @@
     <script>
         let currentThreadId = null;
         let pendingToolCall = null;
-        const API_BASE = window.location.origin;
+        
+        // Smart API base detection - handles both root and subpath deployments
+        function getApiBase() {
+            const path = window.location.pathname;
+            const origin = window.location.origin;
+            
+            // If we're at /langgraphplayground/ or any subpath, include it
+            if (path.startsWith('/langgraphplayground')) {
+                return `${origin}/langgraphplayground`;
+            }
+            
+            // Otherwise, use root
+            return origin;
+        }
+        
+        const API_BASE = getApiBase();
+        console.log('API_BASE set to:', API_BASE);
         
         // Thread Management
         async function createThread() {
