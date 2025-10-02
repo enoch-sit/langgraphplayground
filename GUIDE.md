@@ -989,6 +989,114 @@ console.log('API_BASE set to:', API_BASE);
 
 Should show: `https://your-domain.com/langgraphplayground` (not just origin).
 
+#### SSL Certificate "Not Secure" Warning in Browser
+
+**Symptoms:** Chrome shows "Not secure" warning, certificate error when accessing via HTTPS.
+
+**Cause:** Hostname mismatch between URL and SSL certificate.
+
+**Common Scenario:**
+- Your wildcard certificate: `*.eduhk.hk` (covers `project-1-04.eduhk.hk`)
+- Your URL: `https://project-1-04/langgraphplayground/` ❌ (no domain suffix)
+- Browser error: Certificate doesn't match hostname
+
+**Fix: Use Full Domain Name**
+
+```bash
+# ❌ WRONG: Short hostname (certificate won't match)
+https://project-1-04/langgraphplayground/
+
+# ✅ CORRECT: Full domain (certificate matches)
+https://project-1-04.eduhk.hk/langgraphplayground/
+```
+
+**Verify Your Setup:**
+
+1. **Check certificate coverage:**
+   ```bash
+   # On server
+   openssl x509 -in /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt -noout -text | grep -E "Subject:|DNS:"
+   ```
+
+2. **Verify nginx server_name:**
+   ```bash
+   grep 'server_name' /etc/nginx/sites-available/project-1-04
+   ```
+   
+   Should show:
+   ```nginx
+   server_name project-1-04.eduhk.hk;
+   ```
+   
+   **If it shows short hostname like `project-1-04`, you need to fix it:**
+   
+   ```bash
+   # Edit nginx config
+   sudo nano /etc/nginx/sites-available/project-1-04
+   ```
+   
+   **Update BOTH server blocks** (HTTP and HTTPS):
+   
+   ```nginx
+   # HTTP redirect block
+   server {
+       listen 80;
+       server_name project-1-04.eduhk.hk;  # ← Must match full domain
+       return 301 https://$host$request_uri;
+   }
+   
+   # HTTPS server block
+   server {
+       listen 443 ssl;
+       server_name project-1-04.eduhk.hk;  # ← Must match full domain
+       
+       ssl_certificate /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt;
+       ssl_certificate_key /etc/nginx/ssl/dept-wildcard.eduhk/dept-wildcard.eduhk.hk.key;
+       # ... rest of config ...
+   }
+   ```
+   
+   **Then test and reload:**
+   
+   ```bash
+   # Test configuration
+   sudo nginx -t
+   
+   # If successful, reload
+   sudo systemctl reload nginx
+   ```
+
+3. **Test DNS resolution:**
+   ```bash
+   nslookup project-1-04.eduhk.hk
+   # Should resolve to your server IP
+   ```
+
+**Certificate Coverage Examples:**
+
+| Certificate Type | Covers | Doesn't Cover |
+|------------------|--------|---------------|
+| `*.eduhk.hk` | `project-1-04.eduhk.hk` ✅ | `project-1-04` ❌ |
+| `*.eduhk.hk` | `flowise.eduhk.hk` ✅ | `eduhk.hk` ❌ (root domain) |
+| `*.dept.eduhk.hk` | `server.dept.eduhk.hk` ✅ | `server.eduhk.hk` ❌ |
+
+**Update Your Bookmarks/Links:**
+
+If you've been using the short hostname, update to full domain:
+- Bookmarks: `https://project-1-04.eduhk.hk/langgraphplayground/`
+- Documentation: Use full domain in examples
+- API calls: Use full domain in base URLs
+
+**Why This Happens:**
+
+Browsers perform strict certificate validation:
+1. Browser extracts hostname from URL (`project-1-04`)
+2. Checks if hostname matches certificate's Subject Alternative Names (SANs)
+3. Certificate has `*.eduhk.hk`, but URL has no `.eduhk.hk` suffix
+4. No match → "Not secure" warning ⚠️
+
+Using the full domain (`project-1-04.eduhk.hk`) makes the hostname match the wildcard pattern, and the certificate becomes valid! ✅
+
 ### Debug Mode
 
 Enable verbose logging:
