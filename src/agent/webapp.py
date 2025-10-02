@@ -77,9 +77,9 @@ REACT_BUILD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend"
 if os.path.exists(REACT_BUILD_DIR):
     assets_dir = os.path.join(REACT_BUILD_DIR, "assets")
     if os.path.exists(assets_dir):
-        # Mount at ROOT_PATH + /assets to match Vite build paths
-        mount_path = f"{ROOT_PATH}/assets" if ROOT_PATH else "/assets"
-        app.mount(mount_path, StaticFiles(directory=assets_dir), name="assets")
+        # Mount at /assets (FastAPI automatically prepends root_path)
+        # So with root_path="/langgraphplayground", this becomes /langgraphplayground/assets
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 
 @app.get("/health")
