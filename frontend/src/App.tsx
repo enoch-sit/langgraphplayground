@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from './api/client';
 import type { Message, ToolCall, Checkpoint } from './types/api';
+import { GraphVisualization } from './components/GraphVisualization';
 import './index.css';
 
 function App() {
@@ -16,6 +17,8 @@ function App() {
     next: string[] | null;
     checkpointId?: string;
   } | null>(null);
+  const [currentNode, setCurrentNode] = useState<string | null>(null);
+  const [executingEdge, setExecutingEdge] = useState<{from: string, to: string} | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -135,6 +138,10 @@ function App() {
     }]);
     
     try {
+      // Visual feedback: agent is thinking
+      setCurrentNode('agent');
+      setExecutingEdge({from: 'START', to: 'agent'});
+      
       const response = await api.invokeAgent({
         thread_id: currentThreadId,
         message,
@@ -142,12 +149,16 @@ function App() {
       });
       
       if (response.status === 'interrupted') {
-        // Show approval dialog
+        // Show approval dialog - visual feedback on tools node
+        setCurrentNode('tools');
+        setExecutingEdge({from: 'agent', to: 'tools'});
         if (response.tool_calls && response.tool_calls.length > 0) {
           setPendingToolCall(response.tool_calls[0]);
         }
       } else if (response.status === 'completed') {
         // Reload state to get all messages
+        setCurrentNode(null);
+        setExecutingEdge(null);
         await loadState();
       }
     } catch (error) {
@@ -166,15 +177,31 @@ function App() {
     setLoading(true);
     
     try {
+      if (approved) {
+        // Visual: executing tools
+        setCurrentNode('tools');
+        setExecutingEdge({from: 'agent', to: 'tools'});
+      }
+      
       await api.resumeAgent({
         thread_id: currentThreadId,
         approved,
       });
       
+      // Visual: back to agent after tool execution
+      if (approved) {
+        setExecutingEdge({from: 'tools', to: 'agent'});
+        await new Promise(resolve => setTimeout(resolve, 300)); // Brief delay for visual feedback
+      }
+      
       // Reload state to get updated messages
+      setCurrentNode(null);
+      setExecutingEdge(null);
       await loadState();
     } catch (error) {
       addSystemMessage(`Error: ${error}`);
+      setCurrentNode(null);
+      setExecutingEdge(null);
     } finally {
       setLoading(false);
     }
@@ -209,7 +236,7 @@ function App() {
       </header>
       
       <div className="main-content">
-        {/* Left Panel: Thread Management */}
+        {/* Left Panel: Thread Management & Graph */}
         <div className="panel">
           <h2>📝 Threads</h2>
           <button onClick={createThread}>➕ New Thread</button>
@@ -223,6 +250,12 @@ function App() {
               </li>
             )}
           </ul>
+          
+          <h2 style={{ marginTop: '20px' }}>🔀 Graph Flow</h2>
+          <GraphVisualization 
+            currentNode={currentNode} 
+            executingEdge={executingEdge}
+          />
         </div>
         
         {/* Center Panel: Chat Interface */}
@@ -241,26 +274,6 @@ function App() {
               </span>
             </div>
           </div>
-          
-          {/* HITL Approval Box */}
-          {pendingToolCall && (
-            <div className="approval-box">
-              <h3>🛑 Human Approval Required</h3>
-              <div className="tool-call-info">
-                <div><strong>Tool:</strong> {pendingToolCall.name}</div>
-                <div><strong>Arguments:</strong></div>
-                <pre>{JSON.stringify(pendingToolCall.args, null, 2)}</pre>
-              </div>
-              <div className="button-group">
-                <button className="success" onClick={() => handleToolApproval(true)}>
-                  ✅ Approve
-                </button>
-                <button className="danger" onClick={() => handleToolApproval(false)}>
-                  ❌ Reject
-                </button>
-              </div>
-            </div>
-          )}
           
           {/* Chat Messages */}
           <div className="chat-messages">
@@ -335,6 +348,26 @@ function App() {
           <button onClick={sendMessage} disabled={loading || !currentThreadId}>
             🚀 Send Message
           </button>
+          
+          {/* HITL Approval Box - Moved to Bottom */}
+          {pendingToolCall && (
+            <div className="approval-box" style={{ marginTop: '20px' }}>
+              <h3>🛑 Human Approval Required</h3>
+              <div className="tool-call-info">
+                <div><strong>Tool:</strong> {pendingToolCall.name}</div>
+                <div><strong>Arguments:</strong></div>
+                <pre>{JSON.stringify(pendingToolCall.args, null, 2)}</pre>
+              </div>
+              <div className="button-group">
+                <button className="success" onClick={() => handleToolApproval(true)}>
+                  ✅ Approve
+                </button>
+                <button className="danger" onClick={() => handleToolApproval(false)}>
+                  ❌ Reject
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Right Panel: State & Checkpoints */}
@@ -360,7 +393,15 @@ function App() {
             </div>
           )}
           
-          <h3 style={{ marginTop: '20px', color: '#667eea', fontSize: '1em' }}>Checkpoints</h3>
+          <h3 style={{ marginTop: '20px', color: '#667eea', fontSize: '1em' }}>
+            Checkpoints 
+            <span style={{ fontSize: '0.75em', color: '#666', fontWeight: 'normal' }}>
+              {' '}(0 = earliest → higher = later)
+            </span>
+          </h3>
+          <p style={{ fontSize: '0.8em', color: '#888', margin: '5px 0 10px 0' }}>
+            Higher checkpoint numbers represent later states in time
+          </p>
           <ul className="checkpoint-list">
             {checkpoints.length === 0 ? (
               <li style={{ padding: '10px', color: '#666' }}>No checkpoints yet</li>

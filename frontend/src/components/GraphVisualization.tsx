@@ -3,7 +3,12 @@ import { api } from '../api/client';
 import type { GraphNodesResponse, GraphNode } from '../types/api';
 import './GraphVisualization.css';
 
-export function GraphVisualization() {
+interface GraphVisualizationProps {
+  currentNode?: string | null;
+  executingEdge?: {from: string, to: string} | null;
+}
+
+export function GraphVisualization({ currentNode, executingEdge }: GraphVisualizationProps) {
   const [graphData, setGraphData] = useState<GraphNodesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +83,53 @@ export function GraphVisualization() {
 
   return (
     <div className="graph-visualization">
-      <h3>Graph Structure</h3>
+      <h3>Visual Graph</h3>
+      
+      {/* Simple Visual Graph Representation */}
+      <div className="graph-flow-visual">
+        <div className={`flow-node ${currentNode === 'START' ? 'active' : ''}`}>
+          <span className="node-icon">▶</span>
+          <span className="node-name">START</span>
+        </div>
+        
+        <div className={`flow-edge ${executingEdge?.from === 'START' && executingEdge?.to === 'agent' ? 'active' : ''}`}>
+          ↓
+        </div>
+        
+        <div className={`flow-node ${currentNode === 'agent' ? 'active' : ''}`} style={{ borderLeftColor: '#60a5fa' }}>
+          <span className="node-icon">⚙</span>
+          <span className="node-name">agent</span>
+        </div>
+        
+        <div className="flow-branch">
+          <div className="branch-path">
+            <div className={`flow-edge ${executingEdge?.from === 'agent' && executingEdge?.to === 'tools' ? 'active' : ''}`}>
+              ↓ (tools needed)
+            </div>
+            <div className={`flow-node ${currentNode === 'tools' ? 'active' : ''}`} style={{ borderLeftColor: '#fbbf24' }}>
+              <span className="node-icon">🔧</span>
+              <span className="node-name">tools</span>
+              <span className="node-badge">HITL</span>
+            </div>
+            <div className={`flow-edge ${executingEdge?.from === 'tools' && executingEdge?.to === 'agent' ? 'active' : ''}`}>
+              ↓
+            </div>
+            <div className="flow-merge">↓</div>
+          </div>
+          
+          <div className="branch-path">
+            <div className={`flow-edge ${executingEdge?.from === 'agent' && executingEdge?.to === 'END' ? 'active' : ''}`}>
+              → (no tools)
+            </div>
+            <div className="flow-merge">→</div>
+          </div>
+        </div>
+        
+        <div className={`flow-node ${currentNode === 'END' ? 'active' : ''}`} style={{ borderLeftColor: '#f87171' }}>
+          <span className="node-icon">■</span>
+          <span className="node-name">END</span>
+        </div>
+      </div>
       
       <div className="graph-info">
         <div className="info-item">
