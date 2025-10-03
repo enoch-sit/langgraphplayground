@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import json
 
 from .graph import graph, graph_no_interrupt, memory, AgentState
+from .state_manager import StateManager, GraphRunner, create_state_manager
 from langchain_core.messages import HumanMessage, AIMessage
 
 # Load environment variables
@@ -143,23 +144,15 @@ async def get_thread(thread_id: str):
 @app.get("/threads/{thread_id}/state")
 async def get_state(thread_id: str):
     """Get current state of a thread."""
-    config = {"configurable": {"thread_id": thread_id}}
-    
     try:
-        state = graph.get_state(config)
+        state_manager = create_state_manager(graph, thread_id)
+        state = state_manager.get_current_state()
         
-        messages = []
-        for msg in state.values.get("messages", []):
-            msg_dict = {
-                "type": type(msg).__name__,
-                "content": msg.content if hasattr(msg, "content") else str(msg)
-            }
-            
-            # Add tool_calls if present
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                msg_dict["tool_calls"] = msg.tool_calls
-            
-            messages.append(msg_dict)
+        if not state.values:
+            raise HTTPException(status_code=404, detail="Thread state not found")
+        
+        # Use StateManager's serialization
+        messages = state_manager._serialize_messages(state.values.get("messages", []))
         
         return {
             "thread_id": thread_id,
@@ -167,6 +160,8 @@ async def get_state(thread_id: str):
             "next": state.next,
             "checkpoint_id": state.config.get("configurable", {}).get("checkpoint_id")
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"State not found: {str(e)}")
 
@@ -174,24 +169,13 @@ async def get_state(thread_id: str):
 @app.get("/threads/{thread_id}/history")
 async def get_history(thread_id: str, limit: int = 10):
     """Get checkpoint history for a thread."""
-    config = {"configurable": {"thread_id": thread_id}}
-    
     try:
-        history = list(graph.get_state_history(config))
-        
-        checkpoints = []
-        for i, state in enumerate(history[:limit]):
-            checkpoints.append({
-                "index": i,
-                "checkpoint_id": state.config.get("configurable", {}).get("checkpoint_id"),
-                "messages_count": len(state.values.get("messages", [])),
-                "next": state.next,
-                "parent_checkpoint_id": state.parent_config.get("configurable", {}).get("checkpoint_id") if state.parent_config else None
-            })
+        state_manager = create_state_manager(graph, thread_id)
+        checkpoints = state_manager.get_state_history(limit=limit, include_metadata=False)
         
         return {
             "thread_id": thread_id,
-            "total": len(history),
+            "total": len(checkpoints),
             "checkpoints": checkpoints
         }
     except Exception as e:
@@ -495,47 +479,24 @@ async def get_graph_nodes():
 @app.get("/threads/{thread_id}/state/fields")
 async def get_state_fields(thread_id: str):
     """Get available state fields and their current values."""
-    config = {"configurable": {"thread_id": thread_id}}
-    
     try:
-        state = graph.get_state(config)
+        state_manager = create_state_manager(graph, thread_id)
+        state = state_manager.get_current_state()
         
         if not state.values:
             raise HTTPException(status_code=404, detail="Thread state not found")
         
-        # Parse messages for display
-        messages_detail = []
-        for msg in state.values.get("messages", []):
-            msg_dict = {
-                "type": type(msg).__name__,
-                "content": msg.content if hasattr(msg, "content") else str(msg),
-            }
-            
-            # Add tool_calls if present
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                msg_dict["tool_calls"] = msg.tool_calls
-            
-            # Add tool call id if present
-            if hasattr(msg, "tool_call_id") and msg.tool_call_id:
-                msg_dict["tool_call_id"] = msg.tool_call_id
-            
-            messages_detail.append(msg_dict)
+        # Use StateManager's generic field introspection
+        fields_info = state_manager.get_state_fields_info()
+        display_info = state_manager.get_display_info()
         
         return {
             "thread_id": thread_id,
-            "fields": {
-                "messages": {
-                    "type": "list[Message]",
-                    "count": len(state.values.get("messages", [])),
-                    "editable": True,
-                    "description": "Conversation history including human, AI, and tool messages",
-                    "value": messages_detail
-                }
-            },
+            "fields": fields_info,
             "metadata": {
-                "next": state.next,
-                "checkpoint_id": state.config.get("configurable", {}).get("checkpoint_id"),
-                "parent_checkpoint_id": state.parent_config.get("configurable", {}).get("checkpoint_id") if state.parent_config else None
+                "next": display_info['next'],
+                "checkpoint_id": display_info['checkpoint_id'],
+                "parent_checkpoint_id": display_info['parent_checkpoint_id']
             }
         }
     except HTTPException:
@@ -547,51 +508,22 @@ async def get_state_fields(thread_id: str):
 @app.post("/threads/{thread_id}/state/update")
 async def update_state_fields(thread_id: str, state_update: Dict[str, Any]):
     """Allow users to manually edit graph state fields."""
-    config = {"configurable": {"thread_id": thread_id}}
-    
     try:
-        # Get current state
-        current_state = graph.get_state(config)
+        state_manager = create_state_manager(graph, thread_id)
+        current_state = state_manager.get_current_state()
         
         if not current_state.values:
             raise HTTPException(status_code=404, detail="Thread state not found")
         
-        # Convert messages from dict format to LangChain message objects
+        # Use StateManager to deserialize messages
         if "messages" in state_update:
-            from langchain_core.messages import SystemMessage, ToolMessage
-            
-            converted_messages = []
-            for msg in state_update["messages"]:
-                if isinstance(msg, dict):
-                    msg_type = msg.get("type", "HumanMessage")
-                    content = msg.get("content", "")
-                    
-                    if msg_type == "HumanMessage" or msg_type == "human":
-                        converted_messages.append(HumanMessage(content=content))
-                    elif msg_type == "AIMessage" or msg_type == "ai":
-                        # Handle tool calls if present
-                        tool_calls = msg.get("tool_calls", [])
-                        if tool_calls:
-                            converted_messages.append(AIMessage(content=content, tool_calls=tool_calls))
-                        else:
-                            converted_messages.append(AIMessage(content=content))
-                    elif msg_type == "SystemMessage" or msg_type == "system":
-                        converted_messages.append(SystemMessage(content=content))
-                    elif msg_type == "ToolMessage" or msg_type == "tool":
-                        # ToolMessage requires tool_call_id
-                        tool_call_id = msg.get("tool_call_id", msg.get("id", ""))
-                        converted_messages.append(ToolMessage(content=content, tool_call_id=tool_call_id))
-                else:
-                    # Already a LangChain message object
-                    converted_messages.append(msg)
-            
-            state_update["messages"] = converted_messages
+            state_update["messages"] = state_manager.deserialize_messages(state_update["messages"])
         
-        # Update state with converted values
-        graph.update_state(config, state_update)
+        # Update state using StateManager
+        state_manager.update_state_values(state_update)
         
         # Get updated state
-        updated_state = graph.get_state(config)
+        updated_state = state_manager.get_current_state()
         
         return {
             "status": "updated",
@@ -614,32 +546,15 @@ async def update_state_fields(thread_id: str, state_update: Dict[str, Any]):
 @app.get("/threads/{thread_id}/checkpoints/{checkpoint_id}/state")
 async def get_checkpoint_state(thread_id: str, checkpoint_id: str):
     """Get the state at a specific checkpoint for time travel."""
-    config = {
-        "configurable": {
-            "thread_id": thread_id,
-            "checkpoint_id": checkpoint_id
-        }
-    }
-    
     try:
-        state = graph.get_state(config)
+        state_manager = create_state_manager(graph, thread_id)
+        state = state_manager.get_checkpoint_state(checkpoint_id)
         
         if not state.values:
             raise HTTPException(status_code=404, detail="Checkpoint not found")
         
-        # Serialize messages
-        messages = []
-        for msg in state.values.get("messages", []):
-            msg_dict = {
-                "type": type(msg).__name__,
-                "content": msg.content if hasattr(msg, "content") else str(msg)
-            }
-            
-            # Add tool_calls if present
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                msg_dict["tool_calls"] = msg.tool_calls
-            
-            messages.append(msg_dict)
+        # Use StateManager's serialization
+        messages = state_manager._serialize_messages(state.values.get("messages", []))
         
         return {
             "thread_id": thread_id,
@@ -661,42 +576,22 @@ async def resume_from_checkpoint(thread_id: str, checkpoint_id: str, new_input: 
     If new_input is provided, it will be used as the input for resuming.
     If new_input is None, the graph will resume from the checkpoint with no new input.
     """
-    config = {
-        "configurable": {
-            "thread_id": thread_id,
-            "checkpoint_id": checkpoint_id
-        }
-    }
-    
     try:
-        # Get the checkpoint state to verify it exists
-        checkpoint_state = graph.get_state(config)
+        state_manager = create_state_manager(graph, thread_id)
         
+        # Verify checkpoint exists
+        checkpoint_state = state_manager.get_checkpoint_state(checkpoint_id)
         if not checkpoint_state.values:
             raise HTTPException(status_code=404, detail="Checkpoint not found")
         
-        # Resume from checkpoint
-        # If new_input is provided, invoke with it; otherwise invoke with None
-        input_data = None if new_input is None else new_input
-        
-        result = graph.invoke(input_data, config)
+        # Resume from checkpoint using StateManager
+        result = state_manager.resume_from_checkpoint(checkpoint_id, new_input)
         
         # Get final state
-        final_state = graph.get_state({"configurable": {"thread_id": thread_id}})
+        final_state = state_manager.get_current_state()
         
-        # Serialize messages
-        messages = []
-        for msg in final_state.values.get("messages", []):
-            msg_dict = {
-                "type": type(msg).__name__,
-                "content": msg.content if hasattr(msg, "content") else str(msg)
-            }
-            
-            # Add tool_calls if present
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                msg_dict["tool_calls"] = msg.tool_calls
-            
-            messages.append(msg_dict)
+        # Use StateManager's serialization
+        messages = state_manager._serialize_messages(final_state.values.get("messages", []))
         
         return {
             "status": "completed",
@@ -709,6 +604,30 @@ async def resume_from_checkpoint(thread_id: str, checkpoint_id: str, new_input: 
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error resuming from checkpoint: {str(e)}")
+
+
+@app.get("/threads/{thread_id}/snapshots")
+async def get_state_snapshots(thread_id: str, truncate: int = 80):
+    """Get formatted summary of all state snapshots (inspired by refractorRef.md).
+    
+    This provides a human-readable view of the entire state history,
+    useful for debugging and understanding graph execution flow.
+    
+    Args:
+        thread_id: Thread identifier
+        truncate: Maximum length for string values in output
+    """
+    try:
+        state_manager = create_state_manager(graph, thread_id)
+        summary = state_manager.get_snapshots_summary(truncate_length=truncate)
+        
+        return {
+            "thread_id": thread_id,
+            "summary": summary,
+            "truncate_length": truncate
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting snapshots: {str(e)}")
 
 
 # Root endpoint - serve React SPA
