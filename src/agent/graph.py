@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMe
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
 
 from .tools import tools, tools_by_name
 
@@ -217,8 +217,34 @@ workflow.add_edge(START, "agent")
 workflow.add_conditional_edges("agent", should_continue, ["tools", END])
 workflow.add_edge("tools", "agent")
 
-# Create memory saver for persistence
-memory = MemorySaver()
+# Create PostgreSQL checkpointer for multi-user persistence
+def get_postgres_checkpointer():
+    """Create PostgreSQL checkpointer from environment variables."""
+    from psycopg_pool import ConnectionPool
+    
+    # Get PostgreSQL connection details from environment
+    db_uri = os.getenv(
+        "POSTGRES_URI",
+        f"postgresql://{os.getenv('POSTGRES_USER', 'langgraph')}:"
+        f"{os.getenv('POSTGRES_PASSWORD', 'langgraph_password_change_in_production')}@"
+        f"{os.getenv('POSTGRES_HOST', 'localhost')}:"
+        f"{os.getenv('POSTGRES_PORT', '5432')}/"
+        f"{os.getenv('POSTGRES_DB', 'langgraph')}"
+    )
+    
+    # Create connection pool (handles concurrent connections)
+    pool = ConnectionPool(
+        conninfo=db_uri,
+        max_size=20,  # Max connections for students
+        kwargs={"autocommit": True, "prepare_threshold": 0},
+    )
+    
+    # Setup tables and return saver
+    return PostgresSaver(pool)
+
+# Initialize checkpointer
+memory = get_postgres_checkpointer()
+memory.setup()  # Create tables if they don't exist
 
 # Compile the graph WITH persistence and HITL support
 # interrupt_before=["tools"] enables human-in-the-loop

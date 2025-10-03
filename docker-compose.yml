@@ -1,6 +1,27 @@
 version: '3.8'
 
 services:
+  # PostgreSQL database for persistent checkpoint storage
+  postgres:
+    image: postgres:16-alpine
+    container_name: langgraph-postgres
+    environment:
+      POSTGRES_DB: langgraph
+      POSTGRES_USER: langgraph
+      POSTGRES_PASSWORD: langgraph_password_change_in_production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langgraph"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - langgraph-net
+    restart: unless-stopped
+
   langgraph-playground:
     build:
       context: .
@@ -15,6 +36,12 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - ROOT_PATH=/langgraphplayground  # Change to "/" for root path deployment
+      # PostgreSQL connection
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=langgraph
+      - POSTGRES_USER=langgraph
+      - POSTGRES_PASSWORD=langgraph_password_change_in_production
     volumes:
       # Development: Mount source for hot reload
       # Production: Comment out src mount, keep data only
@@ -22,6 +49,9 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     
     # Health check
     healthcheck:
@@ -54,3 +84,7 @@ services:
 networks:
   langgraph-net:
     driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
