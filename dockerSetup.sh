@@ -301,49 +301,36 @@ main() {
     fi
     echo ""
     
-    # Check for existing setup
+    # Check for existing setup and auto-cleanup
     if check_existing_containers; then
         echo ""
-        read -p "$(echo -e ${YELLOW}Found existing containers. Clean up and rebuild? [y/N]:${NC} )" -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            cleanup_docker
-            echo ""
-        else
-            log_info "Skipping cleanup. Proceeding with build..."
-            echo ""
-        fi
+        log_info "Found existing containers. Automatically cleaning up and rebuilding..."
+        cleanup_docker
+        echo ""
     fi
     
     # Build Docker
     build_docker
     echo ""
     
-    # Ask if user wants to start
-    read -p "$(echo -e ${GREEN}Build complete! Start containers now? [Y/n]:${NC} )" -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        start_docker
-        echo ""
-        
-        log_success "========================================"
-        log_success "  Setup Complete!"
-        log_success "========================================"
-        echo ""
-        log_info "Access your application at:"
-        echo -e "  ${GREEN}http://localhost:$TARGET_PORT${NC}"
-        echo ""
-        log_info "View logs with:"
-        echo -e "  ${BLUE}$DOCKER_COMPOSE_CMD logs -f${NC}"
-        echo ""
-        log_info "Stop containers with:"
-        echo -e "  ${BLUE}$DOCKER_COMPOSE_CMD down${NC}"
-        echo ""
-    else
-        log_info "Containers not started. Start them manually with:"
-        echo -e "  ${BLUE}$DOCKER_COMPOSE_CMD up -d${NC}"
-        echo ""
-    fi
+    # Auto-start containers
+    log_info "Build complete! Automatically starting containers..."
+    start_docker
+    echo ""
+    
+    log_success "========================================"
+    log_success "  Setup Complete!"
+    log_success "========================================"
+    echo ""
+    log_info "Access your application at:"
+    echo -e "  ${GREEN}http://localhost:$TARGET_PORT${NC}"
+    echo ""
+    log_info "View logs with:"
+    echo -e "  ${BLUE}$DOCKER_COMPOSE_CMD logs -f${NC}"
+    echo ""
+    log_info "Stop containers with:"
+    echo -e "  ${BLUE}$DOCKER_COMPOSE_CMD down${NC}"
+    echo ""
 }
 
 # Run main function

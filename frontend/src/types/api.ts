@@ -145,3 +145,39 @@ export interface HealthResponse {
   status: string;
   service: string;
 }
+
+// Streaming event types
+export type StreamEvent = 
+  | StreamNodeEvent 
+  | StreamInterruptEvent 
+  | StreamCompleteEvent 
+  | StreamErrorEvent;
+
+export interface StreamNodeEvent {
+  event: 'node';
+  node: string;
+  data: {
+    plan?: string;
+    draft?: string;
+    critique?: string;
+    queries?: string[];
+    message?: {
+      type: string;
+      content: string;
+    };
+  };
+}
+
+export interface StreamInterruptEvent {
+  event: 'interrupt';
+  next: string[];
+}
+
+export interface StreamCompleteEvent {
+  event: 'complete';
+}
+
+export interface StreamErrorEvent {
+  event: 'error';
+  error: string;
+}

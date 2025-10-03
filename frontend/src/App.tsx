@@ -139,7 +139,7 @@ function App() {
   };
   
   // Send message
-    const sendMessage = async () => {
+  const sendMessage = async () => {
     if (!currentThreadId) {
       alert('Please create or select a thread first');
       return;
@@ -179,49 +179,65 @@ function App() {
     }
     
     try {
-      // Visual feedback: agent is thinking
-      const nextNode = (shouldContinue && stateInfo?.next) ? stateInfo.next[0] : 'planner';
-      console.log('🎨 [sendMessage] Setting currentNode to:', nextNode);
-      setCurrentNode(nextNode);
-      setExecutingEdge(shouldContinue ? null : {from: 'START', to: 'planner'});
+      // Use streaming for real-time updates
+      console.log('� [sendMessage] Starting streaming execution');
       
-      console.log('🌐 [sendMessage] Calling api.invokeAgent with:', {
+      for await (const event of api.streamAgent({
         thread_id: currentThreadId,
-        message: shouldContinue ? '(empty - continuing)' : message,
-        use_hitl: useHITL
-      });
-      
-      const response = await api.invokeAgent({
-        thread_id: currentThreadId,
-        message: shouldContinue ? '' : message,  // Empty message when continuing
+        message: shouldContinue ? '' : message,
         use_hitl: useHITL,
-      });
-      
-      console.log('📨 [sendMessage] Received response:', response);
-      console.log('📊 [sendMessage] Response status:', response.status);
-      
-      if (response.status === 'interrupted') {
-        // Graph interrupted at a node (HITL checkpoint)
-        const nextNode = response.next && response.next.length > 0 ? response.next[0] : 'unknown';
-        console.log('⏸️ [sendMessage] Graph INTERRUPTED at node:', nextNode);
-        console.log('📋 [sendMessage] Current state:', (response as any).current_state);
-        setCurrentNode(nextNode);
-        setExecutingEdge(null);
+      })) {
+        console.log('📨 [sendMessage] Stream event:', event);
         
-        // Show what node we're waiting at
-        addSystemMessage(`⏸️ Graph paused at node: "${nextNode}". Click "Send Message" again to continue.`);
-        
-        // Load checkpoints to show current state
-        await loadHistory();
-        await loadState();
-      } else if (response.status === 'completed') {
-        // Reload state to get all messages
-        console.log('✅ [sendMessage] Graph COMPLETED');
-        console.log('📄 [sendMessage] Final result:', (response as any).result);
-        setCurrentNode(null);
-        setExecutingEdge(null);
-        await loadState(); // This now auto-loads checkpoints
+        if (event.event === 'node') {
+          // Update visual feedback
+          setCurrentNode(event.node);
+          addSystemMessage(`⚙️ Executing node: ${event.node}`);
+          
+          // Add the message to the chat if present
+          if (event.data.message) {
+            console.log('💬 [sendMessage] Adding streamed message:', event.data.message);
+            setMessages(prev => [...prev, {
+              type: event.data.message!.type as any,
+              content: event.data.message!.content,
+            }]);
+          }
+          
+          // Show intermediate results
+          if (event.data.plan) {
+            addSystemMessage(`📋 Plan updated: ${event.data.plan.substring(0, 100)}...`);
+          }
+          if (event.data.draft) {
+            addSystemMessage(`✍️ Draft updated (${event.data.draft.length} chars)`);
+          }
+          if (event.data.critique) {
+            addSystemMessage(`🤔 Critique: ${event.data.critique.substring(0, 100)}...`);
+          }
+          if (event.data.queries && event.data.queries.length > 0) {
+            addSystemMessage(`🔍 Research queries: ${event.data.queries.join(', ')}`);
+          }
+        } else if (event.event === 'interrupt') {
+          // Graph interrupted at HITL checkpoint
+          const nextNode = event.next && event.next.length > 0 ? event.next[0] : 'unknown';
+          console.log('⏸️ [sendMessage] Graph INTERRUPTED at node:', nextNode);
+          setCurrentNode(nextNode);
+          setExecutingEdge(null);
+          addSystemMessage(`⏸️ Graph paused at node: "${nextNode}". Click "Send Message" again to continue.`);
+        } else if (event.event === 'complete') {
+          // Graph execution completed
+          console.log('✅ [sendMessage] Graph COMPLETED');
+          setCurrentNode(null);
+          setExecutingEdge(null);
+          addSystemMessage('✅ Graph execution complete!');
+        } else if (event.event === 'error') {
+          console.error('❌ [sendMessage] Stream error:', event.error);
+          addSystemMessage(`❌ Error: ${event.error}`);
+        }
       }
+      
+      // Reload state to get final messages and checkpoints
+      await loadState();
+      
     } catch (error) {
       console.error('❌ [sendMessage] Error occurred:', error);
       addSystemMessage(`Error: ${error}`);

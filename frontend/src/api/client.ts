@@ -11,6 +11,7 @@ import type {
   StateUpdateRequest,
   StateUpdateResponse,
   HealthResponse,
+  StreamEvent,
 } from '../types/api';
 
 /**
@@ -112,15 +113,82 @@ export const api = {
       body: JSON.stringify(input),
     });
   },
-  
+
   async resumeAgent(input: ResumeInput): Promise<RunResponse> {
     return apiFetch<RunResponse>('/runs/resume', {
       method: 'POST',
       body: JSON.stringify(input),
     });
   },
-  
-  // Graph information
+
+  /**
+   * Stream agent execution with real-time events
+   * Returns an async generator that yields events as they happen
+   */
+  async *streamAgent(input: RunInput): AsyncGenerator<StreamEvent, void, unknown> {
+    const url = `${API_BASE}/runs/stream`;
+    
+    console.log('🌊 [STREAM] Starting stream with:', input);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      console.error('❌ [STREAM] Error response:', error);
+      throw new Error(error.detail || `Stream failed: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Response body is not readable');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('🏁 [STREAM] Stream complete');
+          break;
+        }
+
+        // Decode the chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Process complete SSE messages (split by \n\n)
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || ''; // Keep incomplete message in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonData = line.substring(6).trim();
+            if (jsonData) {
+              try {
+                const event = JSON.parse(jsonData) as StreamEvent;
+                console.log('📨 [STREAM] Event:', event);
+                yield event;
+              } catch (e) {
+                console.warn('⚠️ [STREAM] Failed to parse event:', jsonData);
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },  // Graph information
   async getGraphInfo(): Promise<GraphInfo> {
     return apiFetch<GraphInfo>('/graph/info');
   },

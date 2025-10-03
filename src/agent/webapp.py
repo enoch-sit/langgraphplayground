@@ -348,6 +348,15 @@ async def stream_agent(input: RunInput):
                     if "queries" in node_output:
                         event_data["data"]["queries"] = node_output["queries"]
                     
+                    # Include messages if present
+                    if "messages" in node_output and node_output["messages"]:
+                        # Get the latest message
+                        latest_message = node_output["messages"][-1]
+                        event_data["data"]["message"] = {
+                            "type": latest_message.__class__.__name__,
+                            "content": latest_message.content
+                        }
+                    
                     yield f"data: {json.dumps(event_data)}\n\n"
             
             # Check if interrupted
