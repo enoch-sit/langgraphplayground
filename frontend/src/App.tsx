@@ -54,7 +54,13 @@ function App() {
     if (!currentThreadId) return;
     
     try {
+      console.log('📊 [loadState] Loading state for thread:', currentThreadId);
       const state = await api.getThreadState(currentThreadId);
+      console.log('📊 [loadState] Received state:', {
+        messageCount: state.messages.length,
+        next: state.next,
+        checkpointId: state.checkpoint_id
+      });
       setMessages(state.messages);
       setStateInfo({
         messageCount: state.messages.length,
@@ -65,7 +71,7 @@ function App() {
       // Auto-load checkpoints when state loads
       await loadHistory();
     } catch (error) {
-      console.error('Error loading state:', error);
+      console.error('❌ [loadState] Error loading state:', error);
     }
   };
   
@@ -123,19 +129,35 @@ function App() {
     if (!currentThreadId) return;
     
     try {
+      console.log('📜 [loadHistory] Loading checkpoint history for thread:', currentThreadId);
       const history = await api.getThreadHistory(currentThreadId);
+      console.log('📜 [loadHistory] Received history:', history.total, 'checkpoints');
       setCheckpoints(history.checkpoints);
     } catch (error) {
-      console.error('Error loading history:', error);
+      console.error('❌ [loadHistory] Error loading history:', error);
     }
   };
   
   // Send message
-  const sendMessage = async () => {
-    if (!currentThreadId || !messageInput.trim()) {
-      if (!currentThreadId) {
-        alert('Please create or select a thread first');
-      }
+    const sendMessage = async () => {
+    if (!currentThreadId) {
+      alert('Please create or select a thread first');
+      return;
+    }
+    
+    // Check if we should continue an interrupted graph or start new
+    const shouldContinue = stateInfo?.next && stateInfo.next.length > 0;
+    
+    console.log('🔵 [sendMessage] Starting sendMessage function');
+    console.log('🔵 [sendMessage] currentThreadId:', currentThreadId);
+    console.log('🔵 [sendMessage] messageInput:', messageInput);
+    console.log('🔵 [sendMessage] shouldContinue:', shouldContinue);
+    console.log('🔵 [sendMessage] stateInfo.next:', stateInfo?.next);
+    console.log('🔵 [sendMessage] useHITL:', useHITL);
+    
+    if (!shouldContinue && !messageInput.trim()) {
+      // Need a message to start new graph
+      console.log('⚠️ [sendMessage] No message and not continuing - returning');
       return;
     }
     
@@ -143,41 +165,68 @@ function App() {
     setMessageInput('');
     setLoading(true);
     
-    // Add user message immediately
-    setMessages(prev => [...prev, {
-      type: 'HumanMessage',
-      content: message,
-    }]);
+    // Add user message only if starting new (not continuing)
+    if (!shouldContinue && message) {
+      console.log('📤 [sendMessage] Adding user message to chat:', message);
+      setMessages(prev => [...prev, {
+        type: 'HumanMessage',
+        content: message,
+      }]);
+    } else if (shouldContinue) {
+      // Continuing interrupted graph
+      console.log('▶️ [sendMessage] Continuing interrupted graph from node:', stateInfo?.next?.[0]);
+      addSystemMessage('▶️ Continuing graph execution...');
+    }
     
     try {
       // Visual feedback: agent is thinking
-      setCurrentNode('agent');
-      setExecutingEdge({from: 'START', to: 'agent'});
+      const nextNode = (shouldContinue && stateInfo?.next) ? stateInfo.next[0] : 'planner';
+      console.log('🎨 [sendMessage] Setting currentNode to:', nextNode);
+      setCurrentNode(nextNode);
+      setExecutingEdge(shouldContinue ? null : {from: 'START', to: 'planner'});
+      
+      console.log('🌐 [sendMessage] Calling api.invokeAgent with:', {
+        thread_id: currentThreadId,
+        message: shouldContinue ? '(empty - continuing)' : message,
+        use_hitl: useHITL
+      });
       
       const response = await api.invokeAgent({
         thread_id: currentThreadId,
-        message,
+        message: shouldContinue ? '' : message,  // Empty message when continuing
         use_hitl: useHITL,
       });
       
+      console.log('📨 [sendMessage] Received response:', response);
+      console.log('📊 [sendMessage] Response status:', response.status);
+      
       if (response.status === 'interrupted') {
-        // Show approval dialog - visual feedback on tools node
-        setCurrentNode('tools');
-        setExecutingEdge({from: 'agent', to: 'tools'});
-        if (response.tool_calls && response.tool_calls.length > 0) {
-          setPendingToolCall(response.tool_calls[0]);
-        }
+        // Graph interrupted at a node (HITL checkpoint)
+        const nextNode = response.next && response.next.length > 0 ? response.next[0] : 'unknown';
+        console.log('⏸️ [sendMessage] Graph INTERRUPTED at node:', nextNode);
+        console.log('📋 [sendMessage] Current state:', (response as any).current_state);
+        setCurrentNode(nextNode);
+        setExecutingEdge(null);
+        
+        // Show what node we're waiting at
+        addSystemMessage(`⏸️ Graph paused at node: "${nextNode}". Click "Send Message" again to continue.`);
+        
         // Load checkpoints to show current state
         await loadHistory();
+        await loadState();
       } else if (response.status === 'completed') {
         // Reload state to get all messages
+        console.log('✅ [sendMessage] Graph COMPLETED');
+        console.log('📄 [sendMessage] Final result:', (response as any).result);
         setCurrentNode(null);
         setExecutingEdge(null);
         await loadState(); // This now auto-loads checkpoints
       }
     } catch (error) {
+      console.error('❌ [sendMessage] Error occurred:', error);
       addSystemMessage(`Error: ${error}`);
     } finally {
+      console.log('🏁 [sendMessage] Setting loading to false');
       setLoading(false);
     }
   };

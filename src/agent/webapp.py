@@ -2,6 +2,7 @@
 
 import os
 import uuid
+import logging
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
@@ -22,6 +23,13 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 # Load environment variables
 load_dotenv()
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Use essay writer as the default graph
 graph = essay_graph
@@ -197,30 +205,50 @@ async def invoke_agent(input: RunInput):
     """Run agent without streaming (single response)."""
     config = {"configurable": {"thread_id": input.thread_id}}
     
+    logger.info(f"📥 /runs/invoke called - thread_id: {input.thread_id}, use_hitl: {input.use_hitl}")
+    logger.info(f"📝 Message received: '{input.message[:100]}...' (length: {len(input.message)})")
+    
     try:
         # Choose graph based on HITL setting
         agent = graph if input.use_hitl else graph_no_interrupt
+        logger.info(f"🔀 Using graph: {'WITH interrupts (HITL)' if input.use_hitl else 'WITHOUT interrupts'}")
         
-        # Create input for essay writer - use message as task
-        essay_input = {
-            "task": input.message,
-            "max_revisions": 2,
-            "revision_number": 0,
-            "count": 0,
-            "plan": "",
-            "draft": "",
-            "critique": "",
-            "content": [],
-            "queries": []
-        }
+        # Check if there's existing state
+        existing_state = agent.get_state(config)
         
-        # Invoke agent
-        result = agent.invoke(essay_input, config=config)
+        # If there's existing state with a task, continue from checkpoint (use None input)
+        # Otherwise, create new essay input
+        if existing_state.values and existing_state.values.get("task"):
+            # Continue from checkpoint - resume the graph
+            logger.info(f"♻️ CONTINUING from checkpoint - existing task: '{existing_state.values.get('task')[:50]}...'")
+            logger.info(f"📍 Current state.next: {existing_state.next}")
+            logger.info(f"🔢 Revision number: {existing_state.values.get('revision_number', 0)}")
+            result = agent.invoke(None, config=config)
+        else:
+            # Create new input for essay writer - use message as task
+            logger.info(f"🆕 STARTING NEW graph - creating essay input with task: '{input.message[:50]}...'")
+            essay_input = {
+                "task": input.message,
+                "max_revisions": 2,
+                "revision_number": 0,
+                "count": 0,
+                "plan": "",
+                "draft": "",
+                "critique": "",
+                "content": [],
+                "queries": []
+            }
+            
+            # Invoke agent
+            result = agent.invoke(essay_input, config=config)
         
         # Check if interrupted (waiting for approval)
         state = agent.get_state(config)
+        logger.info(f"📊 Graph execution completed - state.next: {state.next}")
         
         if state.next:  # Interrupted
+            logger.info(f"⏸️ INTERRUPTED at node(s): {state.next}")
+            logger.info(f"📋 Current state values - task: '{state.values.get('task', '')[:50]}...', plan: {len(state.values.get('plan', ''))} chars, draft: {len(state.values.get('draft', ''))} chars")
             return {
                 "status": "interrupted",
                 "thread_id": input.thread_id,
@@ -234,6 +262,8 @@ async def invoke_agent(input: RunInput):
                 }
             }
         else:  # Completed
+            logger.info(f"✅ COMPLETED - Final draft: {len(result.get('draft', ''))} chars")
+            logger.info(f"📝 Revisions: {result.get('revision_number', 0)}/{state.values.get('max_revisions', 2)}")
             return {
                 "status": "completed",
                 "thread_id": input.thread_id,
@@ -247,6 +277,7 @@ async def invoke_agent(input: RunInput):
             }
     
     except Exception as e:
+        logger.error(f"❌ ERROR in /runs/invoke: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error running agent: {str(e)}")
 
 
@@ -255,25 +286,42 @@ async def stream_agent(input: RunInput):
     """Stream agent execution with real-time events."""
     config = {"configurable": {"thread_id": input.thread_id}}
     
+    logger.info(f"📥 /runs/stream called - thread_id: {input.thread_id}, use_hitl: {input.use_hitl}")
+    logger.info(f"📝 Message received: '{input.message[:100]}...' (length: {len(input.message)})")
+    
     async def event_generator():
         try:
             agent = graph if input.use_hitl else graph_no_interrupt
+            logger.info(f"🔀 Using graph: {'WITH interrupts (HITL)' if input.use_hitl else 'WITHOUT interrupts'}")
             
-            # Create input for essay writer
-            essay_input = {
-                "task": input.message,
-                "max_revisions": 2,
-                "revision_number": 0,
-                "count": 0,
-                "plan": "",
-                "draft": "",
-                "critique": "",
-                "content": [],
-                "queries": []
-            }
+            # Check if there's existing state
+            existing_state = agent.get_state(config)
             
-            for event in agent.stream(essay_input, config=config):
+            # If there's existing state with a task, continue from checkpoint (use None input)
+            # Otherwise, create new essay input
+            if existing_state.values and existing_state.values.get("task"):
+                # Continue from checkpoint - resume the graph
+                logger.info(f"♻️ CONTINUING from checkpoint - existing task: '{existing_state.values.get('task')[:50]}...'")
+                logger.info(f"📍 Current state.next: {existing_state.next}")
+                stream_input = None
+            else:
+                # Create new input for essay writer
+                logger.info(f"🆕 STARTING NEW stream - creating essay input with task: '{input.message[:50]}...'")
+                stream_input = {
+                    "task": input.message,
+                    "max_revisions": 2,
+                    "revision_number": 0,
+                    "count": 0,
+                    "plan": "",
+                    "draft": "",
+                    "critique": "",
+                    "content": [],
+                    "queries": []
+                }
+            
+            for event in agent.stream(stream_input, config=config):
                 for node_name, node_output in event.items():
+                    logger.info(f"🔄 Streaming node: {node_name}")
                     event_data = {
                         "event": "node",
                         "node": node_name,

@@ -41,6 +41,11 @@ async function apiFetch<T>(
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   
+  console.log(`🌐 [API] ${options?.method || 'GET'} ${url}`);
+  if (options?.body) {
+    console.log('📤 [API] Request body:', JSON.parse(options.body as string));
+  }
+  
   try {
     const response = await fetch(url, {
       headers: {
@@ -50,16 +55,21 @@ async function apiFetch<T>(
       ...options,
     });
     
+    console.log(`📥 [API] Response status: ${response.status} ${response.statusText}`);
+    
     if (!response.ok) {
       const error = await response.json().catch(() => ({
         detail: `HTTP ${response.status}: ${response.statusText}`,
       }));
+      console.error('❌ [API] Error response:', error);
       throw new Error(error.detail || `Request failed: ${response.status}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    console.log('✅ [API] Response data:', data);
+    return data;
   } catch (error) {
-    console.error(`API Error [${endpoint}]:`, error);
+    console.error(`❌ [API] Error [${endpoint}]:`, error);
     throw error;
   }
 }
