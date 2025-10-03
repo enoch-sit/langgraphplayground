@@ -6,12 +6,12 @@
 
 .graph-visualization h3 {
   margin-top: 0;
-  color: #fff;
+  color: #333;
   font-size: 1.5rem;
 }
 
 .graph-visualization h4 {
-  color: #fff;
+  color: #333;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }
@@ -79,7 +79,7 @@
 }
 
 .flow-edge {
-  color: rgba(255, 255, 255, 0.7);
+  color: #555;
   font-size: 1.2em;
   padding: 3px 0;
   transition: all 0.3s ease;
@@ -116,7 +116,7 @@
 }
 
 .flow-merge {
-  color: rgba(255, 255, 255, 0.7);
+  color: #555;
   font-size: 1.2em;
 }
 
@@ -128,12 +128,12 @@
 }
 
 .info-item {
-  color: #e5e7eb;
+  color: #444;
   font-size: 0.9rem;
 }
 
 .info-item strong {
-  color: #fff;
+  color: #333;
   margin-right: 0.5rem;
 }
 
@@ -163,7 +163,7 @@
 }
 
 .node-name {
-  color: #fff;
+  color: #333;
   font-weight: 600;
   font-size: 1.1rem;
 }
@@ -171,14 +171,14 @@
 .node-type {
   margin-left: auto;
   padding: 0.25rem 0.5rem;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(102, 126, 234, 0.2);
   border-radius: 4px;
   font-size: 0.75rem;
-  color: #fff;
+  color: #333;
 }
 
 .node-description {
-  color: #d1d5db;
+  color: #555;
   font-size: 0.9rem;
   margin: 0.5rem 0;
 }
@@ -192,11 +192,11 @@
 
 .node-detail {
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: #555;
 }
 
 .node-detail strong {
-  color: #d1d5db;
+  color: #333;
   margin-right: 0.25rem;
 }
 
@@ -245,10 +245,10 @@
 
 .edge-from,
 .edge-to {
-  color: #fff;
+  color: #333;
   font-weight: 600;
   padding: 0.25rem 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(102, 126, 234, 0.15);
   border-radius: 4px;
 }
 
@@ -258,25 +258,25 @@
 }
 
 .edge-description {
-  color: #9ca3af;
+  color: #555;
   font-size: 0.85rem;
   margin: 0;
 }
 
 .schema-field {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(102, 126, 234, 0.05);
   padding: 0.75rem;
   border-radius: 6px;
   margin-bottom: 0.5rem;
 }
 
 .schema-field strong {
-  color: #fff;
+  color: #333;
   margin-right: 0.5rem;
 }
 
 .schema-field p {
-  color: #9ca3af;
+  color: #555;
   font-size: 0.85rem;
   margin: 0.5rem 0 0 0;
 }
@@ -285,7 +285,7 @@
 .graph-visualization.error {
   text-align: center;
   padding: 2rem;
-  color: #fff;
+  color: #333;
 }
 
 .spinner {

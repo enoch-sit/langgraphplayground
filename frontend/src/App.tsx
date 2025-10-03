@@ -315,6 +315,26 @@ function App() {
               );
             })}
             
+            {/* Show approval inline with messages when tool call is pending */}
+            {pendingToolCall && (
+              <div className="message approval-message">
+                <div className="message-label">🛑 Approval Required</div>
+                <div className="tool-call-info">
+                  <div><strong>Tool:</strong> {pendingToolCall.name}</div>
+                  <div><strong>Arguments:</strong></div>
+                  <pre>{JSON.stringify(pendingToolCall.args, null, 2)}</pre>
+                </div>
+                <div className="button-group">
+                  <button className="success" onClick={() => handleToolApproval(true)}>
+                    ✅ Approve
+                  </button>
+                  <button className="danger" onClick={() => handleToolApproval(false)}>
+                    ❌ Reject
+                  </button>
+                </div>
+              </div>
+            )}
+            
             {loading && (
               <div className="loading">
                 <div className="spinner"></div>
@@ -348,26 +368,6 @@ function App() {
           <button onClick={sendMessage} disabled={loading || !currentThreadId}>
             🚀 Send Message
           </button>
-          
-          {/* HITL Approval Box - Moved to Bottom */}
-          {pendingToolCall && (
-            <div className="approval-box" style={{ marginTop: '20px' }}>
-              <h3>🛑 Human Approval Required</h3>
-              <div className="tool-call-info">
-                <div><strong>Tool:</strong> {pendingToolCall.name}</div>
-                <div><strong>Arguments:</strong></div>
-                <pre>{JSON.stringify(pendingToolCall.args, null, 2)}</pre>
-              </div>
-              <div className="button-group">
-                <button className="success" onClick={() => handleToolApproval(true)}>
-                  ✅ Approve
-                </button>
-                <button className="danger" onClick={() => handleToolApproval(false)}>
-                  ❌ Reject
-                </button>
-              </div>
-            </div>
-          )}
         </div>
         
         {/* Right Panel: State & Checkpoints */}
