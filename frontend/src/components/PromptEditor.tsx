@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { apiClient } from '../api/client';
+import { api } from '../api/client';
 import './PromptEditor.css';
 
 interface PromptEditorProps {
@@ -46,11 +46,11 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
     
     try {
       setLoading(true);
-      const response = await apiClient.get(`/threads/${threadId}/prompts`);
-      setPrompts(response.data.prompts);
+      const response = await api.getPrompts(threadId);
+      setPrompts(response.prompts);
       setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load prompts');
+      setError(err.message || 'Failed to load prompts');
     } finally {
       setLoading(false);
     }
@@ -60,8 +60,8 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
     if (!threadId) return;
     
     try {
-      const response = await apiClient.get(`/threads/${threadId}/parameters`);
-      setParameters(response.data.parameters);
+      const response = await api.getParameters(threadId);
+      setParameters(response.parameters);
     } catch (err: any) {
       console.error('Failed to load parameters:', err);
     }
@@ -79,9 +79,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
 
     try {
       setLoading(true);
-      await apiClient.post(`/threads/${threadId}/prompts/${editingPrompt}`, {
-        prompt: editValue
-      });
+      await api.updatePrompt(threadId, editingPrompt, editValue);
       
       setSuccessMessage(`✅ Prompt '${editingPrompt}' updated!`);
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -93,7 +91,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
         onPromptUpdate();
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to save prompt');
+      setError(err.message || 'Failed to save prompt');
     } finally {
       setLoading(false);
     }
@@ -104,7 +102,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
 
     try {
       setLoading(true);
-      await apiClient.post(`/threads/${threadId}/prompts/${promptName}/reset`);
+      await api.resetPrompt(threadId, promptName);
       
       setSuccessMessage(`✅ Prompt '${promptName}' reset to default!`);
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -115,7 +113,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
         onPromptUpdate();
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to reset prompt');
+      setError(err.message || 'Failed to reset prompt');
     } finally {
       setLoading(false);
     }
@@ -126,9 +124,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
 
     try {
       setLoading(true);
-      await apiClient.post(`/threads/${threadId}/parameters`, {
-        [paramName]: value
-      });
+      await api.updateParameters(threadId, { [paramName]: value });
       
       setSuccessMessage(`✅ Parameter '${paramName}' updated to ${value}!`);
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -139,7 +135,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
         onPromptUpdate();
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to update parameter');
+      setError(err.message || 'Failed to update parameter');
     } finally {
       setLoading(false);
     }
@@ -150,14 +146,14 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
 
     try {
       setLoading(true);
-      await apiClient.post(`/threads/${threadId}/prompts/initialize`);
+      await api.initializePrompts(threadId);
       
       setSuccessMessage('✅ Prompts initialized in state!');
       setTimeout(() => setSuccessMessage(null), 3000);
       
       await loadPrompts();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to initialize prompts');
+      setError(err.message || 'Failed to initialize prompts');
     } finally {
       setLoading(false);
     }

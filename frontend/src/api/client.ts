@@ -157,6 +157,46 @@ export const api = {
       }
     );
   },
+  
+  // Educational endpoints - Prompts
+  async getPrompts(threadId: string): Promise<any> {
+    return apiFetch(`/threads/${threadId}/prompts`);
+  },
+  
+  async getPrompt(threadId: string, promptName: string): Promise<any> {
+    return apiFetch(`/threads/${threadId}/prompts/${promptName}`);
+  },
+  
+  async updatePrompt(threadId: string, promptName: string, prompt: string): Promise<any> {
+    return apiFetch(`/threads/${threadId}/prompts/${promptName}`, {
+      method: 'POST',
+      body: JSON.stringify({ prompt }),
+    });
+  },
+  
+  async resetPrompt(threadId: string, promptName: string): Promise<any> {
+    return apiFetch(`/threads/${threadId}/prompts/${promptName}/reset`, {
+      method: 'POST',
+    });
+  },
+  
+  async initializePrompts(threadId: string): Promise<any> {
+    return apiFetch(`/threads/${threadId}/prompts/initialize`, {
+      method: 'POST',
+    });
+  },
+  
+  // Educational endpoints - Parameters
+  async getParameters(threadId: string): Promise<any> {
+    return apiFetch(`/threads/${threadId}/parameters`);
+  },
+  
+  async updateParameters(threadId: string, parameters: Record<string, any>): Promise<any> {
+    return apiFetch(`/threads/${threadId}/parameters`, {
+      method: 'POST',
+      body: JSON.stringify(parameters),
+    });
+  },
 };
 
 // Export convenience functions
