@@ -420,14 +420,14 @@ function App() {
             🚀 Send Message
           </button>
         </div>
-      </div>
 
-      {/* Right Panel: State Inspector */}
-      <div className="panel state-inspector-panel">
-        <StateInspector 
-          threadId={currentThreadId}
-          onRefresh={handleStateRefresh}
-        />
+        {/* Fourth Panel: State Inspector */}
+        <div className="panel state-inspector-panel">
+          <StateInspector 
+            threadId={currentThreadId}
+            onRefresh={handleStateRefresh}
+          />
+        </div>
       </div>
     </div>
   );
