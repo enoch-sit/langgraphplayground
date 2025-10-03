@@ -150,11 +150,11 @@ check_existing_containers() {
 # ==========================================
 
 cleanup_docker() {
-    log_info "Starting aggressive Docker cleanup..."
+    log_info "Starting ULTRA AGGRESSIVE Docker cleanup..."
     
-    # Stop and remove containers using docker-compose
+    # Stop and remove containers using docker-compose WITH VOLUMES
     if [ -f "$COMPOSE_FILE" ]; then
-        log_info "Stopping containers with docker-compose..."
+        log_info "Stopping containers with docker-compose (including volumes)..."
         
         # Try both sudo and non-sudo
         if sudo -n true 2>/dev/null; then
@@ -163,7 +163,7 @@ cleanup_docker() {
             $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down --volumes --remove-orphans 2>/dev/null || true
         fi
         
-        log_success "Docker Compose down completed"
+        log_success "Docker Compose down completed (volumes removed)"
     fi
     
     # Find and stop any containers with project name
@@ -184,6 +184,22 @@ cleanup_docker() {
         log_success "Containers stopped and removed"
     fi
     
+    # Remove ALL project-specific volumes (AGGRESSIVE)
+    log_info "Removing ALL volumes for $PROJECT_NAME..."
+    PROJECT_VOLUMES=$(docker volume ls -q --filter "name=$PROJECT_NAME" 2>/dev/null || true)
+    
+    if [ -n "$PROJECT_VOLUMES" ]; then
+        log_warning "Found project volumes to remove: $PROJECT_VOLUMES"
+        
+        if sudo -n true 2>/dev/null; then
+            sudo docker volume rm -f $PROJECT_VOLUMES 2>/dev/null || true
+        else
+            docker volume rm -f $PROJECT_VOLUMES 2>/dev/null || true
+        fi
+        
+        log_success "Project volumes removed"
+    fi
+    
     # Remove dangling images
     log_info "Removing dangling images..."
     if sudo -n true 2>/dev/null; then
@@ -193,7 +209,7 @@ cleanup_docker() {
     fi
     
     # Remove images for this project (aggressive cleanup)
-    log_info "Removing project images..."
+    log_info "Removing ALL project images..."
     PROJECT_IMAGES=$(docker images -q "$PROJECT_NAME*" 2>/dev/null || true)
     
     if [ -n "$PROJECT_IMAGES" ]; then
@@ -208,23 +224,40 @@ cleanup_docker() {
         log_success "Project images removed"
     fi
     
-    # Clean build cache (aggressive)
-    log_info "Cleaning Docker build cache..."
+    # Clean build cache (SUPER aggressive - removes ALL cache)
+    log_info "Cleaning ALL Docker build cache..."
     if sudo -n true 2>/dev/null; then
-        sudo docker builder prune -af 2>/dev/null || true
+        sudo docker builder prune -af --volumes 2>/dev/null || true
     else
-        docker builder prune -af 2>/dev/null || true
+        docker builder prune -af --volumes 2>/dev/null || true
     fi
     
-    # Remove unused volumes
-    log_info "Removing unused volumes..."
+    # Remove ALL unused volumes (AGGRESSIVE)
+    log_info "Removing ALL unused volumes..."
     if sudo -n true 2>/dev/null; then
         sudo docker volume prune -f 2>/dev/null || true
     else
         docker volume prune -f 2>/dev/null || true
     fi
     
-    log_success "Docker cleanup completed"
+    # Remove ALL unused networks
+    log_info "Removing unused networks..."
+    if sudo -n true 2>/dev/null; then
+        sudo docker network prune -f 2>/dev/null || true
+    else
+        docker network prune -f 2>/dev/null || true
+    fi
+    
+    # Final system prune (NUCLEAR option - removes everything unused)
+    log_warning "Running system-wide Docker cleanup..."
+    if sudo -n true 2>/dev/null; then
+        sudo docker system prune -af --volumes 2>/dev/null || true
+    else
+        docker system prune -af --volumes 2>/dev/null || true
+    fi
+    
+    log_success "ULTRA AGGRESSIVE cleanup completed - everything is fresh!"
+    log_warning "Note: PostgreSQL data has been wiped. Database will be recreated."
 }
 
 # ==========================================

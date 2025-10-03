@@ -45,7 +45,7 @@ services:
     volumes:
       # Development: Mount source for hot reload
       # Production: Comment out src mount, keep data only
-      # - ./src:/app/src
+      - ./src:/app/src
       - ./data:/app/data
       - ./logs:/app/logs
     restart: unless-stopped
