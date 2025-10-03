@@ -18,10 +18,10 @@ interface PromptEditorProps {
 
 interface Prompts {
   planner_prompt?: string;
-  research_plan_prompt?: string;
+  travel_plan_prompt?: string;
   generator_prompt?: string;
   critic_prompt?: string;
-  research_critique_prompt?: string;
+  travel_critique_prompt?: string;
   agent_system_prompt?: string;
   tool_execution_message?: string;
 }
@@ -35,38 +35,38 @@ interface Parameters {
 const ESSAY_WRITER_PROMPTS = [
   {
     name: 'planner_prompt',
-    title: '📝 Planner Node',
+    title: '📝 Planner',
     icon: '📝',
     description: 'Controls how the essay outline is created',
     node: 'planner'
   },
   {
-    name: 'research_plan_prompt',
-    title: '🔍 Research Plan Node',
-    icon: '🔍',
-    description: 'Controls what information to search for',
-    node: 'research_plan'
+    name: 'travel_plan_prompt',
+    title: '�️ Travel Planning',
+    icon: '�️',
+    description: 'Controls what travel information to search for',
+    node: 'travel_plan'
   },
   {
     name: 'generator_prompt',
-    title: '✍️ Generator Node',
+    title: '✍️ Generator',
     icon: '✍️',
     description: 'Controls the writing style and approach',
     node: 'generate'
   },
   {
     name: 'critic_prompt',
-    title: '👨‍🏫 Critic Node',
+    title: '👨‍🏫 Critic',
     icon: '👨‍🏫',
     description: 'Controls how the essay is evaluated',
     node: 'reflect'
   },
   {
-    name: 'research_critique_prompt',
-    title: '🔬 Research Critique Node',
-    icon: '🔬',
-    description: 'Controls additional research after critique',
-    node: 'research_critique'
+    name: 'travel_critique_prompt',
+    title: '� Travel Planning Critique',
+    icon: '�',
+    description: 'Controls additional travel research after critique',
+    node: 'travel_critique'
   }
 ];
 

@@ -74,14 +74,14 @@ Your outline should include:
 
 Keep it concise but engaging.""",
     
-    "research_plan_prompt": """You are a researcher charged with providing information that can be used when writing an essay.
+    "travel_plan_prompt": """You are a travel researcher charged with providing information that can be used when writing about travel destinations.
 
-Generate a list of search queries that will gather relevant information. Only generate 3 queries max.
+Generate a list of search queries that will gather relevant travel information. Only generate 3 queries max.
 
 Focus on:
-- Key facts and statistics
-- Different perspectives
-- Recent developments or examples
+- Key attractions and activities
+- Different perspectives on the destination
+- Recent travel tips or examples
 
 Return your queries as a list.""",
     
@@ -111,15 +111,15 @@ Evaluate:
 
 Provide specific, actionable feedback.""",
     
-    "research_critique_prompt": """You are a research assistant helping to address critique feedback.
+    "travel_critique_prompt": """You are a travel research assistant helping to address critique feedback.
 
-Generate search queries to find information that can help address the critique.
+Generate search queries to find travel information that can help address the critique.
 Only generate 2 queries max.
 
 Focus on finding:
-- Additional evidence or examples
-- Counterarguments or different perspectives
-- Clarifying information
+- Additional travel experiences or examples
+- Different travel perspectives
+- Clarifying destination information
 
 Return your queries as a list."""
 }
@@ -143,10 +143,10 @@ FIELD_DESCRIPTIONS = {
     
     # Editable prompts
     "planner_prompt": "Prompt for the planner node - controls how outlines are created",
-    "research_plan_prompt": "Prompt for research planning - controls what to search for",
+    "travel_plan_prompt": "Prompt for travel planning - controls what travel info to search for",
     "generator_prompt": "Prompt for the generator node - controls writing style and approach",
     "critic_prompt": "Prompt for the critic node - controls evaluation criteria",
-    "research_critique_prompt": "Prompt for critique research - controls additional research",
+    "travel_critique_prompt": "Prompt for critique travel planning - controls additional travel research",
     
     # Model parameters
     "temperature": "Controls randomness in AI responses (0.0 = deterministic, 1.0 = creative)",

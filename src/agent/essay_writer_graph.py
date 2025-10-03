@@ -37,14 +37,14 @@ Your outline should include:
 
 Keep it concise but engaging."""
 
-DEFAULT_RESEARCH_PLAN_PROMPT = """You are a researcher charged with providing information that can be used when writing an essay.
+DEFAULT_TRAVEL_PLAN_PROMPT = """You are a travel researcher charged with providing information that can be used when writing about travel destinations.
 
-Generate a list of search queries that will gather relevant information. Only generate 3 queries max.
+Generate a list of search queries that will gather relevant travel information. Only generate 3 queries max.
 
 Focus on:
-- Key facts and statistics
-- Different perspectives
-- Recent developments or examples
+- Key attractions and activities
+- Different perspectives on the destination
+- Recent travel tips or examples
 
 Return your queries as a list."""
 
@@ -74,15 +74,15 @@ Evaluate:
 
 Provide specific, actionable feedback."""
 
-DEFAULT_RESEARCH_CRITIQUE_PROMPT = """You are a research assistant helping to address critique feedback.
+DEFAULT_TRAVEL_CRITIQUE_PROMPT = """You are a travel research assistant helping to address critique feedback.
 
-Generate search queries to find information that can help address the critique.
+Generate search queries to find travel information that can help address the critique.
 Only generate 2 queries max.
 
 Focus on finding:
-- Additional evidence or examples
-- Counterarguments or different perspectives
-- Clarifying information
+- Additional travel experiences or examples
+- Different travel perspectives
+- Clarifying destination information
 
 Return your queries as a list."""
 
@@ -110,10 +110,10 @@ class EssayState(TypedDict):
     
     # Editable prompts for each node
     planner_prompt: Optional[str]
-    research_plan_prompt: Optional[str]
+    travel_plan_prompt: Optional[str]
     generator_prompt: Optional[str]
     critic_prompt: Optional[str]
-    research_critique_prompt: Optional[str]
+    travel_critique_prompt: Optional[str]
     
     # Model parameters
     temperature: Optional[float]
@@ -178,12 +178,12 @@ class EssayWriterGraph:
             "count": 1
         }
     
-    def research_plan_node(self, state: EssayState):
-        """Research planning node - generates search queries.
+    def travel_plan_node(self, state: EssayState):
+        """Travel planning node - generates search queries.
         
-        Uses editable research_plan_prompt from state!
+        Uses editable travel_plan_prompt from state!
         """
-        prompt = state.get("research_plan_prompt", DEFAULT_RESEARCH_PLAN_PROMPT)
+        prompt = state.get("travel_plan_prompt", DEFAULT_TRAVEL_PLAN_PROMPT)
         
         llm = self._get_llm(state)
         queries_obj = llm.with_structured_output(Queries).invoke([
@@ -252,12 +252,12 @@ class EssayWriterGraph:
             "count": 1
         }
     
-    def research_critique_node(self, state: EssayState):
-        """Research critique node - finds info to address feedback.
+    def travel_critique_node(self, state: EssayState):
+        """Travel planning critique node - finds info to address feedback.
         
-        Uses editable research_critique_prompt from state!
+        Uses editable travel_critique_prompt from state!
         """
-        prompt = state.get("research_critique_prompt", DEFAULT_RESEARCH_CRITIQUE_PROMPT)
+        prompt = state.get("travel_critique_prompt", DEFAULT_TRAVEL_CRITIQUE_PROMPT)
         
         llm = self._get_llm(state)
         queries_obj = llm.with_structured_output(Queries).invoke([
@@ -292,10 +292,10 @@ class EssayWriterGraph:
         
         # Add nodes
         builder.add_node("planner", self.plan_node)
-        builder.add_node("research_plan", self.research_plan_node)
+        builder.add_node("travel_plan", self.travel_plan_node)
         builder.add_node("generate", self.generation_node)
         builder.add_node("reflect", self.reflection_node)
-        builder.add_node("research_critique", self.research_critique_node)
+        builder.add_node("travel_critique", self.travel_critique_node)
         
         # Set entry point
         builder.set_entry_point("planner")
@@ -306,10 +306,10 @@ class EssayWriterGraph:
             self.should_continue,
             {END: END, "reflect": "reflect"}
         )
-        builder.add_edge("planner", "research_plan")
-        builder.add_edge("research_plan", "generate")
-        builder.add_edge("reflect", "research_critique")
-        builder.add_edge("research_critique", "generate")
+        builder.add_edge("planner", "travel_plan")
+        builder.add_edge("travel_plan", "generate")
+        builder.add_edge("reflect", "travel_critique")
+        builder.add_edge("travel_critique", "generate")
         
         # Compile with PostgreSQL checkpointer
         checkpointer = self._get_postgres_checkpointer()
@@ -354,20 +354,20 @@ graph = essay_writer.graph
 # Also create a version without interrupts for direct execution
 graph_no_interrupt = StateGraph(EssayState)
 graph_no_interrupt.add_node("planner", essay_writer.plan_node)
-graph_no_interrupt.add_node("research_plan", essay_writer.research_plan_node)
+graph_no_interrupt.add_node("travel_plan", essay_writer.travel_plan_node)
 graph_no_interrupt.add_node("generate", essay_writer.generation_node)
 graph_no_interrupt.add_node("reflect", essay_writer.reflection_node)
-graph_no_interrupt.add_node("research_critique", essay_writer.research_critique_node)
+graph_no_interrupt.add_node("travel_critique", essay_writer.travel_critique_node)
 graph_no_interrupt.set_entry_point("planner")
 graph_no_interrupt.add_conditional_edges(
     "generate",
     essay_writer.should_continue,
     {END: END, "reflect": "reflect"}
 )
-graph_no_interrupt.add_edge("planner", "research_plan")
-graph_no_interrupt.add_edge("research_plan", "generate")
-graph_no_interrupt.add_edge("reflect", "research_critique")
-graph_no_interrupt.add_edge("research_critique", "generate")
+graph_no_interrupt.add_edge("planner", "travel_plan")
+graph_no_interrupt.add_edge("travel_plan", "generate")
+graph_no_interrupt.add_edge("reflect", "travel_critique")
+graph_no_interrupt.add_edge("travel_critique", "generate")
 graph_no_interrupt = graph_no_interrupt.compile(
     checkpointer=essay_writer._get_postgres_checkpointer()
 )
