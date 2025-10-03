@@ -216,12 +216,6 @@ function App() {
           setCurrentNode(nextNode);
           setExecutingEdge(null);
           
-          // Add a minimal pause message
-          setMessages(prev => [...prev, {
-            type: 'SystemMessage',
-            content: `⏸️ Paused for review. Click "Send Message" to continue.`,
-          }]);
-          
         } else if (event.event === 'complete') {
           // Graph execution completed
           console.log('✅ [sendMessage] Graph COMPLETED');
@@ -238,7 +232,17 @@ function App() {
       }
       
       // Reload state to get final messages and checkpoints
+      // Load state first to get backend messages
       await loadState();
+      
+      // Then add a pause message if interrupted (after loadState so it doesn't get overwritten)
+      const finalState = await api.getThreadState(currentThreadId);
+      if (finalState.next && finalState.next.length > 0) {
+        setMessages(prev => [...prev, {
+          type: 'SystemMessage',
+          content: `⏸️ Paused before "${finalState.next[0]}" node. Click "Send Message" to continue.`,
+        }]);
+      }
       
     } catch (error) {
       console.error('❌ [sendMessage] Error occurred:', error);
