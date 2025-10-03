@@ -1,4 +1,5 @@
 langgraph>=0.2.60
+langgraph-checkpoint-postgres>=1.0.0
 langchain-aws>=0.2.8
 langchain-core>=0.3.28
 tavily-python>=0.5.0
@@ -8,5 +9,3 @@ uvicorn[standard]>=0.32.0
 python-dotenv>=1.0.0
 pydantic>=2.10.0
 boto3>=1.35.0
-psycopg[binary]>=3.1.0
-psycopg-pool>=3.2.0
