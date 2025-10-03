@@ -26,6 +26,12 @@ Available tools:
 2. get_travel_budget: Calculate travel budget. Args: {"destination": "city", "days": number}
 3. calculator: Evaluate math expressions. Args: {"expression": "2+2*3"}
 
+CRITICAL RULES FOR MULTI-STEP TASKS:
+- Use ONE tool at a time, then wait for results
+- After receiving tool results, check if you need ANOTHER tool before responding to the user
+- If the user asks for multiple actions, complete them sequentially using tools
+- ALWAYS use the calculator tool for math, even if the calculation seems simple
+
 IMPORTANT: 
 - If you need to use a tool, respond ONLY with the JSON object, no other text.
 - If you don't need a tool, respond normally with text.
@@ -37,6 +43,11 @@ You: {"tool": "tavily_search_results_json", "args": {"query": "hotels in Paris"}
 
 User: "What's 25 * 48?"
 You: {"tool": "calculator", "args": {"expression": "25*48"}}
+
+User: "Search for Python tutorials then calculate 2+2"
+Step 1: {"tool": "tavily_search_results_json", "args": {"query": "Python tutorials"}}
+[After receiving search results]
+Step 2: {"tool": "calculator", "args": {"expression": "2+2"}}
 
 User: "Hello, how are you?"
 You: "I'm doing well! How can I help you today?"
@@ -119,7 +130,7 @@ def call_model(state: AgentState):
         client=bedrock_runtime,
         model_id="amazon.nova-lite-v1:0",
         model_kwargs={
-            "temperature": 0.3,  # Lower temperature for more consistent tool detection
+            "temperature": 0.1,  # Very low temperature for consistent tool detection (was 0.3)
             "max_tokens": 4096
         }
     )

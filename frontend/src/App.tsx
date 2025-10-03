@@ -59,6 +59,9 @@ function App() {
         next: state.next,
         checkpointId: state.checkpoint_id,
       });
+      
+      // Auto-load checkpoints when state loads
+      await loadHistory();
     } catch (error) {
       console.error('Error loading state:', error);
     }
@@ -162,11 +165,13 @@ function App() {
         if (response.tool_calls && response.tool_calls.length > 0) {
           setPendingToolCall(response.tool_calls[0]);
         }
+        // Load checkpoints to show current state
+        await loadHistory();
       } else if (response.status === 'completed') {
         // Reload state to get all messages
         setCurrentNode(null);
         setExecutingEdge(null);
-        await loadState();
+        await loadState(); // This now auto-loads checkpoints
       }
     } catch (error) {
       addSystemMessage(`Error: ${error}`);
@@ -204,7 +209,7 @@ function App() {
       // Reload state to get updated messages
       setCurrentNode(null);
       setExecutingEdge(null);
-      await loadState();
+      await loadState(); // This now auto-loads checkpoints
     } catch (error) {
       addSystemMessage(`Error: ${error}`);
       setCurrentNode(null);
@@ -272,7 +277,9 @@ function App() {
           />
           
           <h3 style={{ marginTop: '20px', fontSize: '1em' }}>⏱️ Time Travel</h3>
-          <button onClick={loadHistory} disabled={!currentThreadId}>📜 Load Checkpoints</button>
+          <div style={{ fontSize: '0.85em', color: '#888', marginBottom: '10px' }}>
+            {checkpoints.length > 0 ? `${checkpoints.length} checkpoint${checkpoints.length !== 1 ? 's' : ''} available` : 'Checkpoints will appear here'}
+          </div>
           
           <div className="checkpoint-list">
             {checkpoints.length === 0 ? (
