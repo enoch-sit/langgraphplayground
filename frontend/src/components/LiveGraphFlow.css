@@ -1,0 +1,131 @@
+.live-graph-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fafafa;
+}
+
+.graph-header {
+  padding: 15px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  flex-shrink: 0;
+}
+
+.graph-header h2 {
+  margin: 0 0 10px 0;
+  font-size: 1.3em;
+}
+
+.graph-stats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+
+.stat-label {
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.stat-value {
+  background: rgba(255, 255, 255, 0.25);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.graph-flow {
+  flex: 1;
+  position: relative;
+  background: #fff;
+}
+
+.graph-legend {
+  display: flex;
+  gap: 20px;
+  padding: 12px 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85em;
+  color: #555;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.8);
+  }
+  50% {
+    box-shadow: 0 0 50px rgba(245, 158, 11, 1);
+  }
+}
+
+.active-node {
+  animation: pulse 1.5s infinite;
+}
+
+/* React Flow customizations */
+.react-flow__node {
+  transition: all 0.3s ease;
+}
+
+.react-flow__edge-path {
+  transition: all 0.3s ease;
+}
+
+.react-flow__controls {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.react-flow__controls-button {
+  background: white;
+  border: none;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.react-flow__controls-button:hover {
+  background: #f0f0f0;
+}
+
+.react-flow__minimap {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.react-flow__attribution {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+}

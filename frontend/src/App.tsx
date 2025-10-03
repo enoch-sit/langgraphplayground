@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from './api/client';
 import type { Message, ToolCall, Checkpoint } from './types/api';
-import { GraphVisualization } from './components/GraphVisualization';
+import { LiveGraphFlow } from './components/LiveGraphFlow';
 import './index.css';
 
 function App() {
@@ -223,64 +223,127 @@ function App() {
     }
   };
   
-  // Format thread ID for display
-  const formatThreadId = (id: string) => {
-    return `${id.slice(0, 8)}...${id.slice(-4)}`;
-  };
-  
   return (
     <div className="container">
       <header>
-        <h1>🎮 LangGraph Playground</h1>
-        <p>Explore threads, state, persistence, streaming, and human-in-the-loop workflows</p>
+        <h1>🎮 LangGraph Playground - Live Execution Monitor</h1>
+        <p>Real-time graph state visualization with human-in-the-loop workflows</p>
       </header>
       
       <div className="main-content">
-        {/* Left Panel: Thread Management & Graph */}
-        <div className="panel">
-          <h2>📝 Threads</h2>
+        {/* Left Panel: Thread Management & Controls */}
+        <div className="panel left-panel">
+          <h2>📝 Controls</h2>
           <button onClick={createThread}>➕ New Thread</button>
-          <button onClick={loadState}>🔄 Refresh</button>
+          <button onClick={loadState}>🔄 Refresh State</button>
           
-          <ul className="thread-list">
-            {currentThreadId && (
-              <li className="thread-item active">
-                <div>Thread</div>
-                <div className="thread-id">{currentThreadId}</div>
-              </li>
-            )}
-          </ul>
-          
-          <h2 style={{ marginTop: '20px' }}>🔀 Graph Flow</h2>
-          <GraphVisualization 
-            currentNode={currentNode} 
-            executingEdge={executingEdge}
-          />
-        </div>
-        
-        {/* Center Panel: Chat Interface */}
-        <div className="panel">
-          <h2>💬 Conversation</h2>
+          {currentThreadId && (
+            <div className="thread-info">
+              <div className="info-label">Current Thread</div>
+              <div className="thread-id">{currentThreadId}</div>
+            </div>
+          )}
           
           <div className="state-viewer">
-            <div className="state-item">
-              <span className="state-label">Thread:</span>
-              <span>{currentThreadId ? formatThreadId(currentThreadId) : 'None selected'}</span>
-            </div>
             <div className="state-item">
               <span className="state-label">Status:</span>
               <span className={`status-badge ${currentThreadId ? (pendingToolCall ? 'waiting' : 'active') : ''}`}>
                 {pendingToolCall ? 'Waiting' : currentThreadId ? 'Active' : 'Inactive'}
               </span>
             </div>
+            <div className="state-item">
+              <span className="state-label">Messages:</span>
+              <span>{stateInfo?.messageCount || 0}</span>
+            </div>
+            <div className="state-item">
+              <span className="state-label">Next Node:</span>
+              <span>{stateInfo?.next ? stateInfo.next.join(', ') : 'None'}</span>
+            </div>
           </div>
+          
+          <div className="hitl-control">
+            <label>
+              <input
+                type="checkbox"
+                checked={useHITL}
+                onChange={(e) => setUseHITL(e.target.checked)}
+              />
+              {' '}Use Human-in-the-Loop
+            </label>
+          </div>
+          
+          <h3 style={{ marginTop: '20px', fontSize: '1em' }}>⏱️ Time Travel</h3>
+          <button onClick={loadHistory} disabled={!currentThreadId}>📜 Load Checkpoints</button>
+          
+          <div className="checkpoint-list">
+            {checkpoints.length === 0 ? (
+              <div style={{ padding: '10px', color: '#666', fontSize: '0.85em' }}>No checkpoints yet</div>
+            ) : (
+              checkpoints.map((checkpoint) => (
+                <div
+                  key={checkpoint.index}
+                  className="checkpoint-item"
+                >
+                  <div><strong>#{checkpoint.index}</strong> ({checkpoint.messages_count} msgs)</div>
+                  <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                    <button
+                      onClick={() => checkpoint.checkpoint_id && travelToCheckpoint(checkpoint.checkpoint_id)}
+                      disabled={loading || !checkpoint.checkpoint_id}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        backgroundColor: '#764ba2',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⏰ View
+                    </button>
+                    <button
+                      onClick={() => checkpoint.checkpoint_id && resumeFromCheckpoint(checkpoint.checkpoint_id)}
+                      disabled={loading || !checkpoint.checkpoint_id}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        backgroundColor: '#667eea',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ▶️ Resume
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        
+        {/* Center Panel: Live Graph Visualization */}
+        <div className="panel center-panel" style={{ padding: 0 }}>
+          <LiveGraphFlow 
+            currentNode={currentNode}
+            nextNodes={stateInfo?.next || null}
+            executingEdge={executingEdge}
+            messageCount={messages.length}
+            checkpointId={stateInfo?.checkpointId}
+          />
+        </div>
+        
+        {/* Right Panel: Chat Interface */}
+        <div className="panel right-panel">
+          <h2>� Conversation</h2>
           
           {/* Chat Messages */}
           <div className="chat-messages">
             {messages.length === 0 && (
               <div className="message system">
                 <div className="message-label">System</div>
-                Create or select a thread to start chatting!
+                Create a thread to start chatting!
               </div>
             )}
             
@@ -345,17 +408,6 @@ function App() {
             <div ref={messagesEndRef} />
           </div>
           
-          <div>
-            <label>
-              <input
-                type="checkbox"
-                checked={useHITL}
-                onChange={(e) => setUseHITL(e.target.checked)}
-              />
-              {' '}Use Human-in-the-Loop (pause before tools)
-            </label>
-          </div>
-          
           <textarea
             placeholder="Type your message..."
             rows={3}
@@ -368,90 +420,6 @@ function App() {
           <button onClick={sendMessage} disabled={loading || !currentThreadId}>
             🚀 Send Message
           </button>
-        </div>
-        
-        {/* Right Panel: State & Checkpoints */}
-        <div className="panel">
-          <h2>📊 State & Time Travel</h2>
-          <button onClick={loadState} disabled={!currentThreadId}>🔍 View State</button>
-          <button onClick={loadHistory} disabled={!currentThreadId}>📜 Load History</button>
-          
-          {stateInfo && (
-            <div className="state-viewer">
-              <div className="state-item">
-                <span className="state-label">Messages:</span>
-                {stateInfo.messageCount}
-              </div>
-              <div className="state-item">
-                <span className="state-label">Next Node:</span>
-                {stateInfo.next ? stateInfo.next.join(', ') : 'None (completed)'}
-              </div>
-              <div className="state-item">
-                <span className="state-label">Checkpoint:</span>
-                {stateInfo.checkpointId ? `${stateInfo.checkpointId.slice(0, 8)}...` : 'None'}
-              </div>
-            </div>
-          )}
-          
-          <h3 style={{ marginTop: '20px', color: '#667eea', fontSize: '1em' }}>
-            Checkpoints 
-            <span style={{ fontSize: '0.75em', color: '#666', fontWeight: 'normal' }}>
-              {' '}(0 = earliest → higher = later)
-            </span>
-          </h3>
-          <p style={{ fontSize: '0.8em', color: '#888', margin: '5px 0 10px 0' }}>
-            Higher checkpoint numbers represent later states in time
-          </p>
-          <ul className="checkpoint-list">
-            {checkpoints.length === 0 ? (
-              <li style={{ padding: '10px', color: '#666' }}>No checkpoints yet</li>
-            ) : (
-              checkpoints.map((checkpoint) => (
-                <li
-                  key={checkpoint.index}
-                  className="checkpoint-item"
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div><strong>Checkpoint {checkpoint.index}</strong></div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>
-                    {checkpoint.messages_count} messages
-                  </div>
-                  <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
-                    <button
-                      onClick={() => checkpoint.checkpoint_id && travelToCheckpoint(checkpoint.checkpoint_id)}
-                      disabled={loading || !checkpoint.checkpoint_id}
-                      style={{
-                        padding: '3px 8px',
-                        fontSize: '11px',
-                        backgroundColor: '#764ba2',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ⏰ View
-                    </button>
-                    <button
-                      onClick={() => checkpoint.checkpoint_id && resumeFromCheckpoint(checkpoint.checkpoint_id)}
-                      disabled={loading || !checkpoint.checkpoint_id}
-                      style={{
-                        padding: '3px 8px',
-                        fontSize: '11px',
-                        backgroundColor: '#667eea',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ▶️ Resume
-                    </button>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
         </div>
       </div>
     </div>
