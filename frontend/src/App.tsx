@@ -22,6 +22,7 @@ function App() {
   } | null>(null);
   const [currentNode, setCurrentNode] = useState<string | null>(null);
   const [executingEdge, setExecutingEdge] = useState<{from: string, to: string} | null>(null);
+  const [activeTab, setActiveTab] = useState<'chat' | 'graph' | 'state' | 'prompts'>('chat');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -239,210 +240,261 @@ function App() {
   return (
     <div className="container">
       <header>
-        <h1>🎮 LangGraph Playground - Live Execution Monitor</h1>
-        <p>Real-time graph state visualization with human-in-the-loop workflows</p>
+        <h1>🎮 Essay Writer - LangGraph Playground</h1>
+        <p>Multi-node essay writing agent with editable prompts</p>
       </header>
       
       <div className="main-content">
-        {/* Left Panel: Thread Management & Live State */}
-        <div className="panel left-panel">
-          <h2>📝 Controls</h2>
-          <button onClick={createThread}>➕ New Thread</button>
-          <button onClick={loadState}>🔄 Refresh State</button>
+        {/* Thread Controls Bar */}
+        <div className="thread-controls">
+          <button onClick={createThread} className="btn-primary">➕ New Thread</button>
+          <button onClick={loadState} className="btn-secondary">🔄 Refresh</button>
           
           {currentThreadId && (
-            <div className="thread-info">
-              <div className="info-label">Current Thread</div>
-              <div className="thread-id">{currentThreadId}</div>
+            <div className="thread-badge">
+              <span className="thread-label">Thread:</span>
+              <span className="thread-id">{currentThreadId.slice(0, 8)}...</span>
             </div>
           )}
           
-          <div className="hitl-control">
-            <label>
-              <input
-                type="checkbox"
-                checked={useHITL}
-                onChange={(e) => setUseHITL(e.target.checked)}
-              />
-              {' '}Use Human-in-the-Loop
-            </label>
-          </div>
+          <label className="hitl-toggle">
+            <input
+              type="checkbox"
+              checked={useHITL}
+              onChange={(e) => setUseHITL(e.target.checked)}
+            />
+            <span>Human-in-the-Loop</span>
+          </label>
           
-          {/* Live State Panel */}
-          <LiveStatePanel
-            currentNode={currentNode}
-            nextNodes={stateInfo?.next || null}
-            messageCount={messages.length}
-            checkpointId={stateInfo?.checkpointId}
-            status={pendingToolCall ? 'Waiting' : currentThreadId ? 'Active' : 'Inactive'}
-          />
-          
-          <h3 style={{ marginTop: '20px', fontSize: '1em' }}>⏱️ Time Travel</h3>
-          <div style={{ fontSize: '0.85em', color: '#888', marginBottom: '10px' }}>
-            {checkpoints.length > 0 ? `${checkpoints.length} checkpoint${checkpoints.length !== 1 ? 's' : ''} available` : 'Checkpoints will appear here'}
-          </div>
-          
-          <div className="checkpoint-list">
-            {checkpoints.length === 0 ? (
-              <div style={{ padding: '10px', color: '#666', fontSize: '0.85em' }}>No checkpoints yet</div>
-            ) : (
-              checkpoints.map((checkpoint) => (
-                <div
-                  key={checkpoint.index}
-                  className="checkpoint-item"
-                >
-                  <div><strong>#{checkpoint.index}</strong> ({checkpoint.messages_count} msgs)</div>
-                  <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
-                    <button
-                      onClick={() => checkpoint.checkpoint_id && travelToCheckpoint(checkpoint.checkpoint_id)}
-                      disabled={loading || !checkpoint.checkpoint_id}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        backgroundColor: '#764ba2',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ⏰ View
-                    </button>
-                    <button
-                      onClick={() => checkpoint.checkpoint_id && resumeFromCheckpoint(checkpoint.checkpoint_id)}
-                      disabled={loading || !checkpoint.checkpoint_id}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        backgroundColor: '#667eea',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      ▶️ Resume
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          {stateInfo && (
+            <div className={`status-badge ${pendingToolCall ? 'waiting' : loading ? 'processing' : 'ready'}`}>
+              {pendingToolCall ? '⏸️ Waiting' : loading ? '⏳ Processing' : '✅ Ready'}
+            </div>
+          )}
         </div>
-        
-        {/* Center Panel: Live Graph Visualization */}
-        <div className="panel center-panel" style={{ padding: 0 }}>
-          <LiveGraphFlow 
-            currentNode={currentNode}
-            nextNodes={stateInfo?.next || null}
-            executingEdge={executingEdge}
-            messageCount={messages.length}
-            checkpointId={stateInfo?.checkpointId}
-          />
-        </div>
-        
-        {/* Right Panel: Chat Interface */}
-        <div className="panel right-panel">
-          <h2>Conversation</h2>
-          
-          {/* Chat Messages */}
-          <div className="chat-messages">
-            {messages.length === 0 && (
-              <div className="message system">
-                <div className="message-label">System</div>
-                Create a thread to start chatting!
-              </div>
-            )}
-            
-            {messages.map((msg, idx) => {
-              let className = 'message ';
-              let label = '';
-              
-              if (msg.type === 'HumanMessage') {
-                className += 'user';
-                label = 'You';
-              } else if (msg.type === 'AIMessage') {
-                className += 'ai';
-                label = 'Agent';
-              } else if (msg.type === 'ToolMessage') {
-                className += 'tool';
-                label = 'Tool Result';
-              } else {
-                className += 'system';
-                label = 'System';
-              }
-              
-              // Skip AI messages with no content (tool call only)
-              if (msg.type === 'AIMessage' && !msg.content) {
-                return null;
-              }
-              
-              return (
-                <div key={idx} className={className}>
-                  <div className="message-label">{label}</div>
-                  <div>{msg.content}</div>
-                </div>
-              );
-            })}
-            
-            {/* Show approval inline with messages when tool call is pending */}
-            {pendingToolCall && (
-              <div className="message approval-message">
-                <div className="message-label">🛑 Approval Required</div>
-                <div className="tool-call-info">
-                  <div><strong>Tool:</strong> {pendingToolCall.name}</div>
-                  <div><strong>Arguments:</strong></div>
-                  <pre>{JSON.stringify(pendingToolCall.args, null, 2)}</pre>
-                </div>
-                <div className="button-group">
-                  <button className="success" onClick={() => handleToolApproval(true)}>
-                    ✅ Approve
-                  </button>
-                  <button className="danger" onClick={() => handleToolApproval(false)}>
-                    ❌ Reject
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {loading && (
-              <div className="loading">
-                <div className="spinner"></div>
-                <p>Agent thinking...</p>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
-          
-          <textarea
-            placeholder="Type your message..."
-            rows={3}
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={loading}
-          />
-          
-          <button onClick={sendMessage} disabled={loading || !currentThreadId}>
-            🚀 Send Message
+
+        {/* Tab Navigation */}
+        <div className="tabs">
+          <button 
+            className={`tab ${activeTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chat')}
+          >
+            💬 Chat & Essay
+          </button>
+          <button 
+            className={`tab ${activeTab === 'graph' ? 'active' : ''}`}
+            onClick={() => setActiveTab('graph')}
+          >
+            📊 Graph Flow
+          </button>
+          <button 
+            className={`tab ${activeTab === 'state' ? 'active' : ''}`}
+            onClick={() => setActiveTab('state')}
+          >
+            🔍 State Inspector
+          </button>
+          <button 
+            className={`tab ${activeTab === 'prompts' ? 'active' : ''}`}
+            onClick={() => setActiveTab('prompts')}
+          >
+            🎨 Edit Prompts
           </button>
         </div>
 
-        {/* Fourth Panel: State Inspector */}
-        <div className="panel state-inspector-panel">
-          <StateInspector 
-            threadId={currentThreadId}
-            onRefresh={handleStateRefresh}
-          />
-        </div>
+        {/* Tab Content */}
+        <div className="tab-content">
+          {/* CHAT TAB */}
+          {activeTab === 'chat' && (
+            <div className="chat-panel">
+              {/* Chat Messages */}
+              <div className="chat-messages">
+                {messages.length === 0 && (
+                  <div className="message system">
+                    <div className="message-label">System</div>
+                    Create a thread to start chatting!
+                  </div>
+                )}
+                {messages.length === 0 && (
+                  <div className="message system">
+                    <div className="message-label">System</div>
+                    Create a thread to start chatting!
+                  </div>
+                )}
+                
+                {messages.map((msg, idx) => {
+                  let className = 'message ';
+                  let label = '';
+                  
+                  if (msg.type === 'HumanMessage') {
+                    className += 'user';
+                    label = 'You';
+                  } else if (msg.type === 'AIMessage') {
+                    className += 'ai';
+                    label = 'Agent';
+                  } else if (msg.type === 'ToolMessage') {
+                    className += 'tool';
+                    label = 'Tool Result';
+                  } else {
+                    className += 'system';
+                    label = 'System';
+                  }
+                  
+                  // Skip AI messages with no content (tool call only)
+                  if (msg.type === 'AIMessage' && !msg.content) {
+                    return null;
+                  }
+                  
+                  return (
+                    <div key={idx} className={className}>
+                      <div className="message-label">{label}</div>
+                      <div>{msg.content}</div>
+                    </div>
+                  );
+                })}
+                
+                {/* Show approval inline with messages when tool call is pending */}
+                {pendingToolCall && (
+                  <div className="message approval-message">
+                    <div className="message-label">🛑 Approval Required</div>
+                    <div className="tool-call-info">
+                      <div><strong>Tool:</strong> {pendingToolCall.name}</div>
+                      <div><strong>Arguments:</strong></div>
+                      <pre>{JSON.stringify(pendingToolCall.args, null, 2)}</pre>
+                    </div>
+                    <div className="button-group">
+                      <button className="success" onClick={() => handleToolApproval(true)}>
+                        ✅ Approve
+                      </button>
+                      <button className="danger" onClick={() => handleToolApproval(false)}>
+                        ❌ Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {loading && (
+                  <div className="loading">
+                    <div className="spinner"></div>
+                    <p>Agent thinking...</p>
+                  </div>
+                )}
+                
+                <div ref={messagesEndRef} />
+              </div>
+              
+              {/* Chat Input */}
+              <div className="chat-input">
+                <textarea
+                  placeholder="Type your message or essay topic..."
+                  rows={3}
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  disabled={loading}
+                />
+                
+                <button onClick={sendMessage} disabled={loading || !currentThreadId}>
+                  🚀 Send Message
+                </button>
+              </div>
+            </div>
+          )}
 
-        {/* Fifth Panel: Prompt Editor */}
-        <div className="panel prompt-editor-panel">
-          <PromptEditor
-            threadId={currentThreadId}
-            onPromptUpdate={handleStateRefresh}
-          />
+          {/* GRAPH TAB */}
+          {activeTab === 'graph' && (
+            <div className="graph-panel">
+              <LiveGraphFlow 
+                currentNode={currentNode}
+                nextNodes={stateInfo?.next || null}
+                executingEdge={executingEdge}
+                messageCount={messages.length}
+                checkpointId={stateInfo?.checkpointId}
+              />
+              
+              {/* Live State & Checkpoints Sidebar */}
+              <div className="graph-sidebar">
+                <LiveStatePanel
+                  currentNode={currentNode}
+                  nextNodes={stateInfo?.next || null}
+                  messageCount={messages.length}
+                  checkpointId={stateInfo?.checkpointId}
+                  status={pendingToolCall ? 'Waiting' : currentThreadId ? 'Active' : 'Inactive'}
+                />
+                
+                <h3 style={{ marginTop: '20px', fontSize: '1em' }}>⏱️ Time Travel</h3>
+                <div style={{ fontSize: '0.85em', color: '#888', marginBottom: '10px' }}>
+                  {checkpoints.length > 0 ? `${checkpoints.length} checkpoint${checkpoints.length !== 1 ? 's' : ''} available` : 'Checkpoints will appear here'}
+                </div>
+                
+                <div className="checkpoint-list">
+                  {checkpoints.length === 0 ? (
+                    <div style={{ padding: '10px', color: '#666', fontSize: '0.85em' }}>No checkpoints yet</div>
+                  ) : (
+                    checkpoints.map((checkpoint) => (
+                      <div
+                        key={checkpoint.index}
+                        className="checkpoint-item"
+                      >
+                        <div><strong>#{checkpoint.index}</strong> ({checkpoint.messages_count} msgs)</div>
+                        <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                          <button
+                            onClick={() => checkpoint.checkpoint_id && travelToCheckpoint(checkpoint.checkpoint_id)}
+                            disabled={loading || !checkpoint.checkpoint_id}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '11px',
+                              backgroundColor: '#764ba2',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '3px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ⏰ View
+                          </button>
+                          <button
+                            onClick={() => checkpoint.checkpoint_id && resumeFromCheckpoint(checkpoint.checkpoint_id)}
+                            disabled={loading || !checkpoint.checkpoint_id}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '11px',
+                              backgroundColor: '#667eea',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '3px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ▶️ Resume
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STATE TAB */}
+          {activeTab === 'state' && (
+            <div className="state-panel">
+              <StateInspector 
+                threadId={currentThreadId}
+                onRefresh={handleStateRefresh}
+              />
+            </div>
+          )}
+
+          {/* PROMPTS TAB */}
+          {activeTab === 'prompts' && (
+            <div className="prompts-panel">
+              <PromptEditor
+                threadId={currentThreadId}
+                onPromptUpdate={handleStateRefresh}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -450,3 +502,4 @@ function App() {
 }
 
 export default App;
+
