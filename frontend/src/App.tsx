@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from './api/client';
 import type { Message, ToolCall, Checkpoint } from './types/api';
 import { LiveGraphFlow } from './components/LiveGraphFlow';
+import { LiveStatePanel } from './components/LiveStatePanel';
 import './index.css';
 
 function App() {
@@ -231,7 +232,7 @@ function App() {
       </header>
       
       <div className="main-content">
-        {/* Left Panel: Thread Management & Controls */}
+        {/* Left Panel: Thread Management & Live State */}
         <div className="panel left-panel">
           <h2>📝 Controls</h2>
           <button onClick={createThread}>➕ New Thread</button>
@@ -244,23 +245,6 @@ function App() {
             </div>
           )}
           
-          <div className="state-viewer">
-            <div className="state-item">
-              <span className="state-label">Status:</span>
-              <span className={`status-badge ${currentThreadId ? (pendingToolCall ? 'waiting' : 'active') : ''}`}>
-                {pendingToolCall ? 'Waiting' : currentThreadId ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-            <div className="state-item">
-              <span className="state-label">Messages:</span>
-              <span>{stateInfo?.messageCount || 0}</span>
-            </div>
-            <div className="state-item">
-              <span className="state-label">Next Node:</span>
-              <span>{stateInfo?.next ? stateInfo.next.join(', ') : 'None'}</span>
-            </div>
-          </div>
-          
           <div className="hitl-control">
             <label>
               <input
@@ -271,6 +255,15 @@ function App() {
               {' '}Use Human-in-the-Loop
             </label>
           </div>
+          
+          {/* Live State Panel */}
+          <LiveStatePanel
+            currentNode={currentNode}
+            nextNodes={stateInfo?.next || null}
+            messageCount={messages.length}
+            checkpointId={stateInfo?.checkpointId}
+            status={pendingToolCall ? 'Waiting' : currentThreadId ? 'Active' : 'Inactive'}
+          />
           
           <h3 style={{ marginTop: '20px', fontSize: '1em' }}>⏱️ Time Travel</h3>
           <button onClick={loadHistory} disabled={!currentThreadId}>📜 Load Checkpoints</button>
