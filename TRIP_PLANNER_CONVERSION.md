@@ -7,38 +7,45 @@ Successfully converted the Essay Writer multi-step agent into a comprehensive **
 ## Backend Changes (`src/agent/essay_writer_graph.py`)
 
 ### 1. **Module Documentation**
+
 - Updated to describe trip planning workflow
 - Steps: Planning → Research → Itinerary Creation → Review → Improvement
 
 ### 2. **Node Prompts** (All 5 prompts rewritten)
 
 **Planner Prompt:**
+
 - Now creates trip outlines with duration, highlights, activities, and practical considerations
 - Instead of essay outlines with introduction/body/conclusion
 
 **Travel Research Prompt:**
+
 - Focuses on current travel conditions, requirements (visas, weather)
 - Top attractions, activities, experiences
 - Practical tips (budget, safety, local customs, transportation)
 
 **Generator Prompt:**
+
 - Creates detailed day-by-day itineraries with timings
 - Includes costs, transportation, booking tips
 - Suggests restaurants, accommodations, local experiences
 - Instead of writing 3-paragraph essays
 
 **Critic Prompt:**
+
 - Reviews trip itineraries as a travel advisor
 - Evaluates practicality, timing, logistics, budget
 - Checks for balance of activities
 - Instead of grading essay quality
 
 **Critique Research Prompt:**
+
 - Finds missing practical details (costs, transportation, bookings)
 - Searches for alternative activities
 - Instead of finding essay examples
 
 ### 3. **State Type**
+
 - Renamed: `EssayState` → `TripState`
 - Renamed: `EssayWriterGraph` → `TripPlannerGraph`
 - Field documentation updated:
@@ -47,7 +54,9 @@ Successfully converted the Essay Writer multi-step agent into a comprehensive **
   - `draft`: "Current trip itinerary" (was "essay draft")
 
 ### 4. **User-Facing Messages**
+
 All step messages updated:
+
 - **Step 1**: "Trip Planning Complete" (was "Planning Complete")
 - **Step 2**: "Research Complete" (same, but trip-focused queries)
 - **Step 3**: "Itinerary Created" (was "Draft Created")
@@ -55,6 +64,7 @@ All step messages updated:
 - **Step 5**: "Itinerary Revised" (was "Draft Revised")
 
 ### 5. **Logging Messages**
+
 - "Generating itinerary" instead of "Generating draft"
 - "Critiquing itinerary" instead of "Critiquing essay"
 - All logs now trip-planning focused
@@ -62,15 +72,18 @@ All step messages updated:
 ## Frontend Changes (`frontend/src/App.tsx`)
 
 ### 1. **Header**
+
 ```
 🌍 Trip Planner - LangGraph Playground
 Multi-step trip planning agent with editable prompts
 ```
 
 ### 2. **Tab Label**
+
 - "💬 Chat & Trip Plan" (was "Chat & Essay")
 
 ### 3. **Guide Messages** (All rewritten)
+
 - Welcome: "Plan a 5-day trip to Tokyo" (was "Write about AI")
 - Planner step: "The planner will create an outline for your trip"
 - Generator step: "The itinerary generator will create a detailed day-by-day plan"
@@ -78,6 +91,7 @@ Multi-step trip planning agent with editable prompts
 - Complete: "Trip plan complete!"
 
 ### 4. **Input Placeholder**
+
 ```
 "Type your trip request... (e.g., 'Plan a week in Bali' or '3-day adventure in Iceland')"
 ```
@@ -85,15 +99,18 @@ Multi-step trip planning agent with editable prompts
 ## Backend API Changes (`src/agent/webapp.py`)
 
 ### 1. **Import Updates**
+
 - `essay_graph` → `trip_graph`
 - `essay_graph_no_interrupt` → `trip_graph_no_interrupt`
 - `EssayState` → `TripState`
 
 ### 2. **Graph Info Endpoint**
+
 - `graph_type`: "trip_planner" (was "essay_writer")
 - All node descriptions updated for trip planning
 
 ### 3. **Input Variables**
+
 - `essay_input` → `trip_input` throughout
 
 ## How It Works Now
@@ -144,9 +161,10 @@ Multi-step trip planning agent with editable prompts
 - ✅ `frontend/src/App.tsx` - UI labels and messages updated
 - ✅ `src/agent/webapp.py` - API descriptions and variable names updated
 
-## Ready to Use!
+## Ready to Use
 
 The Trip Planner is now fully functional. Users can:
+
 1. Create a new thread
 2. Type: "Plan a week-long trip to Bali with a $3000 budget"
 3. Execute each step to see the planning process
