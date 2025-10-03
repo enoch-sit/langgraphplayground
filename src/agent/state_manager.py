@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 # Default prompts for educational purposes - students can modify these
 DEFAULT_PROMPTS = {
+    # Original agent prompts (for simple tool-based agent)
     "agent_system_prompt": """You are a helpful AI assistant with access to tools. When you need to use a tool, respond with a JSON object in this exact format:
 {"tool": "tool_name", "args": {"arg1": "value1", "arg2": "value2"}}
 
@@ -59,15 +60,97 @@ Step 2: {"tool": "calculator", "args": {"expression": "2+2"}}
 User: "Hello, how are you?"
 You: "I'm doing well! How can I help you today?"
 """,
-    "tool_execution_message": "Executing tool call..."
+    "tool_execution_message": "Executing tool call...",
+    
+    # Essay Writer prompts (for multi-node essay writing agent)
+    "planner_prompt": """You are an expert writer tasked with writing a high level outline of a short 3 paragraph essay.
+
+Write such an outline for the user provided topic. Be creative and think of interesting angles to explore.
+
+Your outline should include:
+- Introduction hook
+- Main points (2-3 key ideas)
+- Conclusion approach
+
+Keep it concise but engaging.""",
+    
+    "research_plan_prompt": """You are a researcher charged with providing information that can be used when writing an essay.
+
+Generate a list of search queries that will gather relevant information. Only generate 3 queries max.
+
+Focus on:
+- Key facts and statistics
+- Different perspectives
+- Recent developments or examples
+
+Return your queries as a list.""",
+    
+    "generator_prompt": """You are an essay assistant tasked with writing excellent 3-paragraph essays.
+
+Use the provided research content and outline to write a compelling essay.
+
+Guidelines:
+- Start with an engaging introduction
+- Support main points with research and examples
+- End with a thoughtful conclusion
+- Keep paragraphs focused and well-structured
+- Cite interesting facts from the research
+
+Write clearly and engagingly for a general audience.""",
+    
+    "critic_prompt": """You are a teacher grading an essay submission.
+
+Generate critique and recommendations for the student's draft. Be constructive but thorough.
+
+Evaluate:
+- Clarity and coherence
+- Use of evidence and examples
+- Strength of arguments
+- Writing quality and flow
+- Areas for improvement
+
+Provide specific, actionable feedback.""",
+    
+    "research_critique_prompt": """You are a research assistant helping to address critique feedback.
+
+Generate search queries to find information that can help address the critique.
+Only generate 2 queries max.
+
+Focus on finding:
+- Additional evidence or examples
+- Counterarguments or different perspectives
+- Clarifying information
+
+Return your queries as a list."""
 }
 
 # Field metadata for educational tooltips
 FIELD_DESCRIPTIONS = {
+    # Simple agent fields
     "messages": "The conversation history including all messages (human, AI, tool calls, tool results)",
     "agent_system_prompt": "The system prompt that guides the AI agent's behavior - try modifying it!",
     "tool_execution_message": "Message shown when tools are executing",
+    
+    # Essay writer fields
+    "task": "The essay topic or assignment",
+    "plan": "The essay outline created by the planner node",
+    "draft": "The current essay draft",
+    "critique": "Feedback from the critic on the essay",
+    "content": "Research content gathered from searches",
+    "queries": "Search queries used to find information",
+    "revision_number": "Current revision iteration (1, 2, 3...)",
+    "max_revisions": "Maximum allowed revisions before stopping",
+    
+    # Editable prompts
+    "planner_prompt": "Prompt for the planner node - controls how outlines are created",
+    "research_plan_prompt": "Prompt for research planning - controls what to search for",
+    "generator_prompt": "Prompt for the generator node - controls writing style and approach",
+    "critic_prompt": "Prompt for the critic node - controls evaluation criteria",
+    "research_critique_prompt": "Prompt for critique research - controls additional research",
+    
+    # Model parameters
     "temperature": "Controls randomness in AI responses (0.0 = deterministic, 1.0 = creative)",
+    "max_tokens": "Maximum tokens in LLM response",
     "max_iterations": "Maximum number of graph execution steps before stopping"
 }
 

@@ -12,11 +12,20 @@ from dotenv import load_dotenv
 import json
 
 from .graph import graph, graph_no_interrupt, memory, AgentState
+from .essay_writer_graph import (
+    graph as essay_graph, 
+    graph_no_interrupt as essay_graph_no_interrupt,
+    EssayState
+)
 from .state_manager import StateManager, GraphRunner, create_state_manager
 from langchain_core.messages import HumanMessage, AIMessage
 
 # Load environment variables
 load_dotenv()
+
+# Use essay writer as the default graph
+graph = essay_graph
+graph_no_interrupt = essay_graph_no_interrupt
 
 # Get ROOT_PATH from environment (for nginx subpath deployment)
 ROOT_PATH = os.getenv("ROOT_PATH", "")
@@ -192,35 +201,49 @@ async def invoke_agent(input: RunInput):
         # Choose graph based on HITL setting
         agent = graph if input.use_hitl else graph_no_interrupt
         
+        # Create input for essay writer - use message as task
+        essay_input = {
+            "task": input.message,
+            "max_revisions": 2,
+            "revision_number": 0,
+            "count": 0,
+            "plan": "",
+            "draft": "",
+            "critique": "",
+            "content": [],
+            "queries": []
+        }
+        
         # Invoke agent
-        result = agent.invoke(
-            {"messages": [HumanMessage(content=input.message)]},
-            config=config
-        )
+        result = agent.invoke(essay_input, config=config)
         
         # Check if interrupted (waiting for approval)
         state = agent.get_state(config)
         
         if state.next:  # Interrupted
-            last_message = state.values["messages"][-1]
             return {
                 "status": "interrupted",
                 "thread_id": input.thread_id,
                 "awaiting_approval": True,
-                "tool_calls": last_message.tool_calls if hasattr(last_message, "tool_calls") else None,
-                "next": state.next
+                "next": state.next,
+                "current_state": {
+                    "task": state.values.get("task"),
+                    "plan": state.values.get("plan", "")[:200] + "..." if len(state.values.get("plan", "")) > 200 else state.values.get("plan", ""),
+                    "draft": state.values.get("draft", "")[:200] + "..." if len(state.values.get("draft", "")) > 200 else state.values.get("draft", ""),
+                    "revision_number": state.values.get("revision_number", 0)
+                }
             }
         else:  # Completed
             return {
                 "status": "completed",
                 "thread_id": input.thread_id,
-                "messages": [
-                    {
-                        "type": type(msg).__name__,
-                        "content": msg.content if hasattr(msg, "content") else str(msg)
-                    }
-                    for msg in result["messages"]
-                ]
+                "result": {
+                    "task": result.get("task"),
+                    "plan": result.get("plan"),
+                    "draft": result.get("draft"),
+                    "critique": result.get("critique"),
+                    "revision_number": result.get("revision_number")
+                }
             }
     
     except Exception as e:
@@ -236,10 +259,20 @@ async def stream_agent(input: RunInput):
         try:
             agent = graph if input.use_hitl else graph_no_interrupt
             
-            for event in agent.stream(
-                {"messages": [HumanMessage(content=input.message)]},
-                config=config
-            ):
+            # Create input for essay writer
+            essay_input = {
+                "task": input.message,
+                "max_revisions": 2,
+                "revision_number": 0,
+                "count": 0,
+                "plan": "",
+                "draft": "",
+                "critique": "",
+                "content": [],
+                "queries": []
+            }
+            
+            for event in agent.stream(essay_input, config=config):
                 for node_name, node_output in event.items():
                     event_data = {
                         "event": "node",
@@ -247,15 +280,15 @@ async def stream_agent(input: RunInput):
                         "data": {}
                     }
                     
-                    if "messages" in node_output:
-                        message = node_output["messages"][-1]
-                        event_data["data"]["message"] = {
-                            "type": type(message).__name__,
-                            "content": message.content if hasattr(message, "content") else str(message)
-                        }
-                        
-                        if hasattr(message, "tool_calls") and message.tool_calls:
-                            event_data["data"]["tool_calls"] = message.tool_calls
+                    # Include relevant state updates
+                    if "plan" in node_output:
+                        event_data["data"]["plan"] = node_output["plan"][:200] + "..." if len(node_output["plan"]) > 200 else node_output["plan"]
+                    if "draft" in node_output:
+                        event_data["data"]["draft"] = node_output["draft"][:200] + "..." if len(node_output["draft"]) > 200 else node_output["draft"]
+                    if "critique" in node_output:
+                        event_data["data"]["critique"] = node_output["critique"][:200] + "..." if len(node_output["critique"]) > 200 else node_output["critique"]
+                    if "queries" in node_output:
+                        event_data["data"]["queries"] = node_output["queries"]
                     
                     yield f"data: {json.dumps(event_data)}\n\n"
             
@@ -385,15 +418,19 @@ async def rewind_checkpoint(thread_id: str, input: CheckpointRewind):
 async def get_graph_info():
     """Get current graph structure."""
     return {
-        "nodes": ["agent", "tools"],
+        "nodes": ["planner", "research_plan", "generate", "reflect", "research_critique"],
         "edges": [
-            {"from": "START", "to": "agent"},
-            {"from": "agent", "to": "tools", "conditional": True},
-            {"from": "agent", "to": "END", "conditional": True},
-            {"from": "tools", "to": "agent"}
+            {"from": "START", "to": "planner"},
+            {"from": "planner", "to": "research_plan"},
+            {"from": "research_plan", "to": "generate"},
+            {"from": "generate", "to": "reflect", "conditional": True},
+            {"from": "generate", "to": "END", "conditional": True},
+            {"from": "reflect", "to": "research_critique"},
+            {"from": "research_critique", "to": "generate"}
         ],
-        "interrupt_before": ["tools"],
-        "checkpointer": "MemorySaver"
+        "interrupt_before": ["planner", "generate", "reflect"],
+        "checkpointer": "PostgresSaver",
+        "graph_type": "essay_writer"
     }
 
 
@@ -407,70 +444,185 @@ async def get_graph_nodes():
                 "name": "START",
                 "type": "entry",
                 "description": "Entry point of the graph",
-                "edges_to": ["agent"],
-                "can_interrupt": False
+                "edges_to": ["planner"],
+                "can_interrupt": False,
+                "editable_prompt": None
             },
             {
-                "id": "agent",
-                "name": "agent",
+                "id": "planner",
+                "name": "planner",
                 "type": "function",
-                "description": "Calls the LLM (AWS Bedrock Nova Lite) to generate responses and detect tool calls using NLP parsing",
-                "edges_to": ["tools", "END"],
-                "edges_conditional": True,
-                "can_interrupt": False
-            },
-            {
-                "id": "tools",
-                "name": "tools",
-                "type": "function",
-                "description": "Executes tools (search, calculator, travel budget) after human approval",
-                "edges_to": ["agent"],
+                "description": "Creates a high-level essay outline based on the topic",
+                "edges_to": ["research_plan"],
                 "can_interrupt": True,
-                "interrupt_before": True
+                "interrupt_before": True,
+                "editable_prompt": "planner_prompt"
+            },
+            {
+                "id": "research_plan",
+                "name": "research_plan",
+                "type": "function",
+                "description": "Generates search queries and gathers research content",
+                "edges_to": ["generate"],
+                "can_interrupt": False,
+                "editable_prompt": "research_plan_prompt"
+            },
+            {
+                "id": "generate",
+                "name": "generate",
+                "type": "function",
+                "description": "Writes the essay draft using the outline and research",
+                "edges_to": ["reflect", "END"],
+                "edges_conditional": True,
+                "can_interrupt": True,
+                "interrupt_before": True,
+                "editable_prompt": "generator_prompt"
+            },
+            {
+                "id": "reflect",
+                "name": "reflect",
+                "type": "function",
+                "description": "Critiques the essay and provides feedback",
+                "edges_to": ["research_critique"],
+                "can_interrupt": True,
+                "interrupt_before": True,
+                "editable_prompt": "critic_prompt"
+            },
+            {
+                "id": "research_critique",
+                "name": "research_critique",
+                "type": "function",
+                "description": "Researches additional information to address critique",
+                "edges_to": ["generate"],
+                "can_interrupt": False,
+                "editable_prompt": "research_critique_prompt"
             },
             {
                 "id": "END",
                 "name": "END",
                 "type": "exit",
-                "description": "End of graph execution",
+                "description": "End of graph execution - essay is complete",
                 "edges_to": [],
-                "can_interrupt": False
+                "can_interrupt": False,
+                "editable_prompt": None
             }
         ],
         "edges": [
             {
                 "from": "START",
-                "to": "agent",
+                "to": "planner",
                 "conditional": False,
-                "description": "Initial invocation"
+                "description": "Initial invocation - start with planning"
             },
             {
-                "from": "agent",
-                "to": "tools",
+                "from": "planner",
+                "to": "research_plan",
+                "conditional": False,
+                "description": "After planning, gather research"
+            },
+            {
+                "from": "research_plan",
+                "to": "generate",
+                "conditional": False,
+                "description": "After research, generate first draft"
+            },
+            {
+                "from": "generate",
+                "to": "reflect",
                 "conditional": True,
-                "description": "When tool calls are detected"
+                "description": "Continue to reflection if under max revisions"
             },
             {
-                "from": "agent",
+                "from": "generate",
                 "to": "END",
                 "conditional": True,
-                "description": "When no tool calls are needed"
+                "description": "End if max revisions reached"
             },
             {
-                "from": "tools",
-                "to": "agent",
+                "from": "reflect",
+                "to": "research_critique",
                 "conditional": False,
-                "description": "After tool execution, return to agent"
+                "description": "After critique, research improvements"
+            },
+            {
+                "from": "research_critique",
+                "to": "generate",
+                "conditional": False,
+                "description": "Generate revised draft with new research"
             }
         ],
-        "entry_point": "agent",
-        "interrupt_before": ["tools"],
-        "checkpointer": "MemorySaver",
+        "entry_point": "planner",
+        "interrupt_before": ["planner", "generate", "reflect"],
+        "checkpointer": "PostgresSaver",
         "state_schema": {
-            "messages": {
-                "type": "list",
-                "description": "Conversation messages (HumanMessage, AIMessage, ToolMessage)",
+            "task": {
+                "type": "string",
+                "description": "The essay topic",
                 "required": True
+            },
+            "plan": {
+                "type": "string",
+                "description": "Essay outline"
+            },
+            "draft": {
+                "type": "string",
+                "description": "Current essay draft"
+            },
+            "critique": {
+                "type": "string",
+                "description": "Feedback on the draft"
+            },
+            "content": {
+                "type": "list",
+                "description": "Research content"
+            },
+            "queries": {
+                "type": "list",
+                "description": "Search queries used"
+            },
+            "revision_number": {
+                "type": "int",
+                "description": "Current revision"
+            },
+            "max_revisions": {
+                "type": "int",
+                "description": "Max allowed revisions",
+                "default": 2
+            },
+            "planner_prompt": {
+                "type": "string",
+                "description": "Editable prompt for planner node",
+                "editable": True
+            },
+            "research_plan_prompt": {
+                "type": "string",
+                "description": "Editable prompt for research_plan node",
+                "editable": True
+            },
+            "generator_prompt": {
+                "type": "string",
+                "description": "Editable prompt for generate node",
+                "editable": True
+            },
+            "critic_prompt": {
+                "type": "string",
+                "description": "Editable prompt for reflect node",
+                "editable": True
+            },
+            "research_critique_prompt": {
+                "type": "string",
+                "description": "Editable prompt for research_critique node",
+                "editable": True
+            },
+            "temperature": {
+                "type": "float",
+                "description": "LLM temperature",
+                "editable": True
+            },
+            "max_tokens": {
+                "type": "int",
+                "description": "Max tokens",
+                "editable": True
             }
         }
     }

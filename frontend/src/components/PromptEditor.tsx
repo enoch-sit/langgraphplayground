@@ -3,6 +3,8 @@
  * 
  * Educational UI for editing node prompts and model parameters.
  * Students can modify prompts to see how it changes agent behavior!
+ * 
+ * Updated for Essay Writer Graph with multiple editable node prompts!
  */
 
 import React, { useState, useEffect } from 'react';
@@ -15,14 +17,58 @@ interface PromptEditorProps {
 }
 
 interface Prompts {
-  agent_system_prompt: string;
-  tool_execution_message: string;
+  planner_prompt?: string;
+  research_plan_prompt?: string;
+  generator_prompt?: string;
+  critic_prompt?: string;
+  research_critique_prompt?: string;
+  agent_system_prompt?: string;
+  tool_execution_message?: string;
 }
 
 interface Parameters {
   temperature: number;
   max_tokens: number;
 }
+
+// Node prompt metadata for Essay Writer
+const ESSAY_WRITER_PROMPTS = [
+  {
+    name: 'planner_prompt',
+    title: '📝 Planner Node',
+    icon: '📝',
+    description: 'Controls how the essay outline is created',
+    node: 'planner'
+  },
+  {
+    name: 'research_plan_prompt',
+    title: '🔍 Research Plan Node',
+    icon: '🔍',
+    description: 'Controls what information to search for',
+    node: 'research_plan'
+  },
+  {
+    name: 'generator_prompt',
+    title: '✍️ Generator Node',
+    icon: '✍️',
+    description: 'Controls the writing style and approach',
+    node: 'generate'
+  },
+  {
+    name: 'critic_prompt',
+    title: '👨‍🏫 Critic Node',
+    icon: '👨‍🏫',
+    description: 'Controls how the essay is evaluated',
+    node: 'reflect'
+  },
+  {
+    name: 'research_critique_prompt',
+    title: '🔬 Research Critique Node',
+    icon: '🔬',
+    description: 'Controls additional research after critique',
+    node: 'research_critique'
+  }
+];
 
 export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUpdate }) => {
   const [prompts, setPrompts] = useState<Prompts | null>(null);
@@ -70,7 +116,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
   const handleEditPrompt = (promptName: string) => {
     if (prompts) {
       setEditingPrompt(promptName);
-      setEditValue(prompts[promptName as keyof Prompts]);
+      setEditValue(prompts[promptName as keyof Prompts] || '');
     }
   };
 
@@ -136,24 +182,6 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
       }
     } catch (err: any) {
       setError(err.message || 'Failed to update parameter');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInitializePrompts = async () => {
-    if (!threadId) return;
-
-    try {
-      setLoading(true);
-      await api.initializePrompts(threadId);
-      
-      setSuccessMessage('✅ Prompts initialized in state!');
-      setTimeout(() => setSuccessMessage(null), 3000);
-      
-      await loadPrompts();
-    } catch (err: any) {
-      setError(err.message || 'Failed to initialize prompts');
     } finally {
       setLoading(false);
     }
@@ -248,144 +276,86 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
       {/* Prompts Section */}
       <div className="prompt-editor-section">
         <div className="section-header">
-          <h4>📝 Editable Prompts</h4>
-          {!prompts && (
-            <button 
-              onClick={handleInitializePrompts}
-              disabled={loading}
-              className="btn-secondary"
-            >
-              Initialize Prompts
-            </button>
-          )}
+          <h4>📝 Essay Writer Node Prompts</h4>
+          <p className="section-subtitle">Each node has its own editable prompt!</p>
         </div>
 
         {prompts ? (
           <div className="prompts-list">
-            {/* Agent System Prompt */}
-            <div className="prompt-item">
-              <div className="prompt-item-header">
-                <h5>🤖 Agent System Prompt</h5>
-                <div className="prompt-actions">
-                  <button 
-                    onClick={() => handleEditPrompt('agent_system_prompt')}
-                    disabled={loading}
-                    className="btn-primary"
-                  >
-                    {editingPrompt === 'agent_system_prompt' ? 'Cancel' : 'Edit'}
-                  </button>
-                  <button 
-                    onClick={() => handleResetPrompt('agent_system_prompt')}
-                    disabled={loading}
-                    className="btn-secondary"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
+            {ESSAY_WRITER_PROMPTS.map((promptInfo) => {
+              const promptValue = prompts[promptInfo.name as keyof Prompts];
+              const isEditing = editingPrompt === promptInfo.name;
               
-              <p className="prompt-description">
-                This prompt guides the AI agent's behavior, tool usage, and response style.
-                Try modifying it to change how the agent behaves!
-              </p>
-
-              {editingPrompt === 'agent_system_prompt' ? (
-                <div className="prompt-editor-form">
-                  <textarea
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    rows={15}
-                    className="prompt-textarea"
-                    placeholder="Enter system prompt..."
-                  />
-                  <div className="prompt-editor-actions">
-                    <button 
-                      onClick={handleSavePrompt}
-                      disabled={loading}
-                      className="btn-save"
-                    >
-                      💾 Save Changes
-                    </button>
-                    <button 
-                      onClick={() => setEditingPrompt(null)}
-                      disabled={loading}
-                      className="btn-cancel"
-                    >
-                      Cancel
-                    </button>
+              return (
+                <div key={promptInfo.name} className="prompt-item">
+                  <div className="prompt-item-header">
+                    <h5>
+                      <span className="prompt-icon">{promptInfo.icon}</span>
+                      {promptInfo.title}
+                    </h5>
+                    <div className="prompt-actions">
+                      <button 
+                        onClick={() => isEditing ? setEditingPrompt(null) : handleEditPrompt(promptInfo.name)}
+                        disabled={loading}
+                        className="btn-primary"
+                      >
+                        {isEditing ? '❌ Cancel' : '✏️ Edit'}
+                      </button>
+                      <button 
+                        onClick={() => handleResetPrompt(promptInfo.name)}
+                        disabled={loading}
+                        className="btn-secondary"
+                      >
+                        🔄 Reset
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <pre className="prompt-preview">
-                  {prompts.agent_system_prompt.substring(0, 300)}
-                  {prompts.agent_system_prompt.length > 300 && '...\n\n[Click Edit to see full prompt]'}
-                </pre>
-              )}
-            </div>
+                  
+                  <p className="prompt-description">
+                    {promptInfo.description} <span className="prompt-node-badge">Node: {promptInfo.node}</span>
+                  </p>
 
-            {/* Tool Execution Message */}
-            <div className="prompt-item">
-              <div className="prompt-item-header">
-                <h5>🔧 Tool Execution Message</h5>
-                <div className="prompt-actions">
-                  <button 
-                    onClick={() => handleEditPrompt('tool_execution_message')}
-                    disabled={loading}
-                    className="btn-primary"
-                  >
-                    {editingPrompt === 'tool_execution_message' ? 'Cancel' : 'Edit'}
-                  </button>
-                  <button 
-                    onClick={() => handleResetPrompt('tool_execution_message')}
-                    disabled={loading}
-                    className="btn-secondary"
-                  >
-                    Reset
-                  </button>
+                  {isEditing ? (
+                    <div className="prompt-editor-form">
+                      <textarea
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        rows={12}
+                        className="prompt-textarea"
+                        placeholder="Enter prompt text..."
+                      />
+                      <div className="prompt-editor-actions">
+                        <button 
+                          onClick={handleSavePrompt}
+                          disabled={loading}
+                          className="btn-save"
+                        >
+                          💾 Save Changes
+                        </button>
+                        <button 
+                          onClick={() => setEditingPrompt(null)}
+                          disabled={loading}
+                          className="btn-cancel"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      <div className="prompt-char-count">
+                        {editValue.length} characters
+                      </div>
+                    </div>
+                  ) : (
+                    <pre className="prompt-preview">
+                      {promptValue || 'Not set - will use default'}
+                    </pre>
+                  )}
                 </div>
-              </div>
-
-              <p className="prompt-description">
-                Message displayed when tools are being executed.
-              </p>
-
-              {editingPrompt === 'tool_execution_message' ? (
-                <div className="prompt-editor-form">
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className="prompt-input"
-                    placeholder="Enter message..."
-                  />
-                  <div className="prompt-editor-actions">
-                    <button 
-                      onClick={handleSavePrompt}
-                      disabled={loading}
-                      className="btn-save"
-                    >
-                      💾 Save
-                    </button>
-                    <button 
-                      onClick={() => setEditingPrompt(null)}
-                      disabled={loading}
-                      className="btn-cancel"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <pre className="prompt-preview-short">
-                  {prompts.tool_execution_message}
-                </pre>
-              )}
-            </div>
+              );
+            })}
           </div>
         ) : (
           <div className="prompts-empty">
-            <p>Prompts not yet initialized in state.</p>
-            <p>Click "Initialize Prompts" to enable editing.</p>
+            <p>Loading prompts...</p>
           </div>
         )}
       </div>
@@ -394,11 +364,13 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
       <div className="prompt-editor-tips">
         <h4>💡 Experiment Ideas</h4>
         <ul>
-          <li>Change temperature to 0.9 and see more creative responses</li>
-          <li>Modify the system prompt to make the agent speak like a pirate 🏴‍☠️</li>
-          <li>Add "Always use emojis" to the prompt for fun responses</li>
-          <li>Lower temperature to 0.0 for completely deterministic behavior</li>
-          <li>Change tool descriptions to see how it affects tool calling</li>
+          <li><strong>Planner:</strong> Change to "Write a detailed 5-paragraph outline" for longer essays</li>
+          <li><strong>Generator:</strong> Add "Use simple language for beginners" to change writing style</li>
+          <li><strong>Critic:</strong> Modify to "Be extremely harsh and critical" to see stricter feedback</li>
+          <li><strong>Temperature:</strong> Increase to 0.9 for more creative writing</li>
+          <li><strong>Research:</strong> Change to "Focus on recent news articles only"</li>
+          <li>Try making the critic prompt very encouraging vs very critical!</li>
+          <li>Experiment with different max_tokens to control essay length</li>
         </ul>
       </div>
     </div>

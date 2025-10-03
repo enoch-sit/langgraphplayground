@@ -4,6 +4,7 @@ import type { Message, ToolCall, Checkpoint } from './types/api';
 import { LiveGraphFlow } from './components/LiveGraphFlow';
 import { LiveStatePanel } from './components/LiveStatePanel';
 import StateInspector from './components/StateInspector';
+import { PromptEditor } from './components/PromptEditor';
 import './index.css';
 
 function App() {
@@ -433,6 +434,14 @@ function App() {
           <StateInspector 
             threadId={currentThreadId}
             onRefresh={handleStateRefresh}
+          />
+        </div>
+
+        {/* Fifth Panel: Prompt Editor */}
+        <div className="panel prompt-editor-panel">
+          <PromptEditor
+            threadId={currentThreadId}
+            onPromptUpdate={handleStateRefresh}
           />
         </div>
       </div>
