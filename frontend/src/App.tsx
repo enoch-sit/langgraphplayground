@@ -23,6 +23,7 @@ function App() {
   const [currentNode, setCurrentNode] = useState<string | null>(null);
   const [executingEdge, setExecutingEdge] = useState<{from: string, to: string} | null>(null);
   const [activeTab, setActiveTab] = useState<'chat' | 'graph' | 'state' | 'prompts'>('chat');
+  const [showGuide, setShowGuide] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -310,6 +311,42 @@ function App() {
     }
   };
   
+  // Get helpful button text based on current state
+  const getButtonText = () => {
+    if (!currentThreadId) return '🚀 Send Message';
+    if (loading) return '⏳ Processing...';
+    if (stateInfo?.next && stateInfo.next.length > 0) {
+      // Paused at a node - show what will execute next
+      return `▶️ Execute Next Step: "${stateInfo.next[0]}"`;
+    }
+    return '🚀 Send Message';
+  };
+  
+  // Get helpful guide message based on current state
+  const getGuideMessage = () => {
+    if (!currentThreadId) {
+      return '👋 Welcome! Click "New Thread" to start, then type your essay topic (e.g., "Write about artificial intelligence").';
+    }
+    if (messages.length === 0) {
+      return '📝 Type your essay topic below and click "Send Message" to begin the multi-step essay writing process.';
+    }
+    if (stateInfo?.next && stateInfo.next.length > 0) {
+      const nextNode = stateInfo.next[0];
+      if (nextNode === 'planner') {
+        return '📋 The planner will create an outline for your essay. Click "Execute Next Step" to start planning.';
+      } else if (nextNode === 'generate') {
+        return '✍️ The generator will write the essay draft based on the outline and research. Click "Execute Next Step" to generate.';
+      } else if (nextNode === 'reflect') {
+        return '🤔 The critic will review the draft and provide feedback. Click "Execute Next Step" to get critique.';
+      }
+      return `⏸️ Ready to execute: ${nextNode}. Click "Execute Next Step" to continue.`;
+    }
+    if (loading) {
+      return '⏳ The AI is working on your essay. This may take a moment...';
+    }
+    return '✅ Process complete! Start a new thread for another essay, or explore the Graph Flow and State Inspector tabs.';
+  };
+  
   return (
     <div className="container">
       <header>
@@ -330,13 +367,13 @@ function App() {
             </div>
           )}
           
-          <label className="hitl-toggle">
+          <label className="hitl-toggle" title="When enabled, the process pauses at each major step for your approval">
             <input
               type="checkbox"
               checked={useHITL}
               onChange={(e) => setUseHITL(e.target.checked)}
             />
-            <span>Human-in-the-Loop</span>
+            <span>Human-in-the-Loop {useHITL ? '(Manual Control)' : '(Auto Run)'}</span>
           </label>
           
           {stateInfo && (
@@ -381,11 +418,45 @@ function App() {
             <div className="chat-panel">
               {/* Chat Messages */}
               <div className="chat-messages">
-                {messages.length === 0 && (
-                  <div className="message system">
-                    <div className="message-label">System</div>
-                    Create a thread to start chatting!
+                {/* Guide Message */}
+                {showGuide && (
+                  <div className="message system" style={{ backgroundColor: '#e3f2fd', border: '1px solid #2196f3' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div>
+                        <div className="message-label">💡 Guide</div>
+                        <div>{getGuideMessage()}</div>
+                        {useHITL && stateInfo?.next && (
+                          <div style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
+                            <strong>Human-in-the-Loop is ON:</strong> You control each step. Review the output and click "Execute Next Step" to continue.
+                          </div>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => setShowGuide(false)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em' }}
+                        title="Hide guide"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
+                )}
+                
+                {!showGuide && (
+                  <button 
+                    onClick={() => setShowGuide(true)}
+                    style={{ 
+                      margin: '10px', 
+                      padding: '5px 10px', 
+                      background: '#2196f3', 
+                      color: 'white', 
+                      border: 'none', 
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    💡 Show Guide
+                  </button>
                 )}
                 {messages.length === 0 && (
                   <div className="message system">
@@ -458,7 +529,9 @@ function App() {
               {/* Chat Input */}
               <div className="chat-input">
                 <textarea
-                  placeholder="Type your message or essay topic..."
+                  placeholder={stateInfo?.next && stateInfo.next.length > 0 
+                    ? "(Optional) Add instructions or just click the button to continue..." 
+                    : "Type your essay topic... (e.g., 'Write about climate change')"}
                   rows={3}
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
@@ -466,8 +539,15 @@ function App() {
                   disabled={loading}
                 />
                 
-                <button onClick={sendMessage} disabled={loading || !currentThreadId}>
-                  🚀 Send Message
+                <button 
+                  onClick={sendMessage} 
+                  disabled={loading || !currentThreadId}
+                  style={{
+                    fontSize: stateInfo?.next && stateInfo.next.length > 0 ? '0.95em' : '1em',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {getButtonText()}
                 </button>
               </div>
             </div>

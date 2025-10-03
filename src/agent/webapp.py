@@ -329,7 +329,7 @@ async def stream_agent(input: RunInput):
                     "messages": [HumanMessage(content=input.message)]
                 }
             
-            for event in agent.stream(stream_input, config=config):
+            for event in agent.stream(stream_input, config=config, stream_mode="values"):
                 for node_name, node_output in event.items():
                     logger.info(f"🔄 Streaming node: {node_name}")
                     event_data = {
@@ -358,13 +358,17 @@ async def stream_agent(input: RunInput):
                         }
                     
                     yield f"data: {json.dumps(event_data)}\n\n"
+                    
+                # After each node, check if we hit an interrupt
+                state = agent.get_state(config)
+                if state.next:
+                    logger.info(f"⏸️ Stream interrupted at node(s): {state.next}")
+                    yield f"data: {json.dumps({'event': 'interrupt', 'next': state.next})}\n\n"
+                    return  # Stop streaming - wait for resume
             
-            # Check if interrupted
-            state = agent.get_state(config)
-            if state.next:
-                yield f"data: {json.dumps({'event': 'interrupt', 'next': state.next})}\n\n"
-            else:
-                yield f"data: {json.dumps({'event': 'complete'})}\n\n"
+            # If we got here, the graph completed without interruption
+            logger.info(f"✅ Stream completed")
+            yield f"data: {json.dumps({'event': 'complete'})}\n\n"
         
         except Exception as e:
             yield f"data: {json.dumps({'event': 'error', 'error': str(e)})}\n\n"
