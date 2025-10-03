@@ -3,6 +3,7 @@ import { api } from './api/client';
 import type { Message, ToolCall, Checkpoint } from './types/api';
 import { LiveGraphFlow } from './components/LiveGraphFlow';
 import { LiveStatePanel } from './components/LiveStatePanel';
+import StateInspector from './components/StateInspector';
 import './index.css';
 
 function App() {
@@ -27,6 +28,11 @@ function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  
+  // Refresh handler for StateInspector
+  const handleStateRefresh = () => {
+    loadState();
+  };
   
   // Create new thread
   const createThread = async () => {
@@ -329,7 +335,7 @@ function App() {
         
         {/* Right Panel: Chat Interface */}
         <div className="panel right-panel">
-          <h2>� Conversation</h2>
+          <h2>Conversation</h2>
           
           {/* Chat Messages */}
           <div className="chat-messages">
@@ -414,6 +420,14 @@ function App() {
             🚀 Send Message
           </button>
         </div>
+      </div>
+
+      {/* Right Panel: State Inspector */}
+      <div className="panel state-inspector-panel">
+        <StateInspector 
+          threadId={currentThreadId}
+          onRefresh={handleStateRefresh}
+        />
       </div>
     </div>
   );

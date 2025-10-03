@@ -158,3 +158,20 @@ export const api = {
     );
   },
 };
+
+// Export convenience functions
+export const {
+  health,
+  createThread,
+  getThread,
+  getThreadState,
+  getThreadHistory,
+  invokeAgent,
+  resumeAgent,
+  getGraphInfo,
+  getGraphNodes,
+  getStateFields,
+  updateStateFields,
+  getCheckpointState,
+  resumeFromCheckpoint,
+} = api;
