@@ -8,12 +8,7 @@ This is a multi-step agent that demonstrates:
 - Iterative improvement (multiple revision cycles)
 
 Each node has an editable prompt stored in state, allowing students
-to experiment with how graph_no_interrupt = StateGraph(TripState)
-graph_no_interrupt.add_node("planner", trip_planner.plan_node)
-graph_no_interrupt.add_node("travel_plan", trip_planner.travel_plan_node)
-graph_no_interrupt.add_node("generate", trip_planner.generation_node)
-graph_no_interrupt.add_node("reflect", trip_planner.reflection_node)
-graph_no_interrupt.add_node("travel_critique", trip_planner.travel_critique_node)ent prompts affect agent behavior!
+to experiment with how different prompts affect agent behavior!
 """
 
 import os
@@ -414,17 +409,10 @@ class TripPlannerGraph:
             f"{os.getenv('POSTGRES_DB', 'langgraph')}",
         )
 
-        # Create connection pool
-        pool = ConnectionPool(
-            conninfo=db_uri,
-            max_size=20,
-            kwargs={"autocommit": True, "prepare_threshold": 0},
-        )
+        # Import shared checkpointer from graph.py to avoid duplicate connections
+        from .graph import memory
 
-        # Setup tables and return saver
-        checkpointer = PostgresSaver(pool)
-        checkpointer.setup()
-        return checkpointer
+        return memory
 
 
 # Create the graph instance

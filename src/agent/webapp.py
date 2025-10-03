@@ -12,12 +12,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import json
 
-from .graph import graph, graph_no_interrupt, memory, AgentState
-from .essay_writer_graph import (
-    graph as trip_graph,
-    graph_no_interrupt as trip_graph_no_interrupt,
-    TripState,
-)
+from .trip_graph import graph, graph_no_interrupt, TripState
 from .state_manager import StateManager, GraphRunner, create_state_manager
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -29,10 +24,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# Use trip planner as the default graph
-graph = trip_graph
-graph_no_interrupt = trip_graph_no_interrupt
 
 # Get ROOT_PATH from environment (for nginx subpath deployment)
 ROOT_PATH = os.getenv("ROOT_PATH", "")
