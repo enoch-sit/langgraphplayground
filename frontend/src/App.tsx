@@ -236,12 +236,15 @@ function App() {
       await loadState();
       
       // Then add a pause message if interrupted (after loadState so it doesn't get overwritten)
-      const finalState = await api.getThreadState(currentThreadId);
-      if (finalState.next && finalState.next.length > 0) {
-        setMessages(prev => [...prev, {
-          type: 'SystemMessage',
-          content: `⏸️ Paused before "${finalState.next[0]}" node. Click "Send Message" to continue.`,
-        }]);
+      if (currentThreadId) {
+        const finalState = await api.getThreadState(currentThreadId);
+        if (finalState.next && finalState.next.length > 0) {
+          const nextNode = finalState.next[0];
+          setMessages(prev => [...prev, {
+            type: 'SystemMessage',
+            content: `⏸️ Paused before "${nextNode}" node. Click "Send Message" to continue.`,
+          }]);
+        }
       }
       
     } catch (error) {
