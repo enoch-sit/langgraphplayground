@@ -233,20 +233,7 @@ function App() {
       }
       
       // Reload state to get final messages and checkpoints
-      // Load state first to get backend messages
       await loadState();
-      
-      // Then add a pause message if interrupted (after loadState so it doesn't get overwritten)
-      if (currentThreadId) {
-        const finalState = await api.getThreadState(currentThreadId);
-        if (finalState.next && finalState.next.length > 0) {
-          const nextNode = finalState.next[0];
-          setMessages(prev => [...prev, {
-            type: 'SystemMessage',
-            content: `⏸️ Paused before "${nextNode}" node. Click "Send Message" to continue.`,
-          }]);
-        }
-      }
       
     } catch (error) {
       console.error('❌ [sendMessage] Error occurred:', error);
