@@ -29,7 +29,7 @@ export function LiveGraphFlow({
   checkpointId 
 }: LiveGraphFlowProps) {
   
-  // Define nodes with FIXED positions - ESSAY WRITER GRAPH
+  // Define nodes with FIXED positions - TRIP PLANNER GRAPH
   const initialNodes: Node[] = useMemo(() => [
     {
       id: 'START',
@@ -166,7 +166,7 @@ export function LiveGraphFlow({
     },
   ], []);
 
-  // Define edges for ESSAY WRITER GRAPH
+  // Define edges for TRIP PLANNER GRAPH
   const initialEdges: Edge[] = useMemo(() => [
     {
       id: 'e-start-planner',
@@ -359,7 +359,7 @@ export function LiveGraphFlow({
         </div>
         <div className="legend-item">
           <div className="legend-color" style={{ background: '#34d399' }}></div>
-          <span>Generator (Essay Writing)</span>
+          <span>Generator (Itinerary Creation)</span>
         </div>
         <div className="legend-item">
           <div className="legend-color" style={{ background: '#fb923c' }}></div>

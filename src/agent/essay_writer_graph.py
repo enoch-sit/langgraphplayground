@@ -1,14 +1,19 @@
-"""Essay Writer LangGraph with editable prompts for each node.
+"""Trip Planner LangGraph with editable prompts for each node.
 
 This is a multi-step agent that demonstrates:
-- Planning (creates essay outline)
-- Research (searches for information)
-- Generation (writes essay draft)
-- Reflection (critiques the essay)
+- Planning (creates trip outline)
+- Research (searches for travel information)
+- Generation (creates trip itinerary)
+- Reflection (reviews and improves the plan)
 - Iterative improvement (multiple revision cycles)
 
 Each node has an editable prompt stored in state, allowing students
-to experiment with how different prompts affect agent behavior!
+to experiment with how graph_no_interrupt = StateGraph(TripState)
+graph_no_interrupt.add_node("planner", trip_planner.plan_node)
+graph_no_interrupt.add_node("travel_plan", trip_planner.travel_plan_node)
+graph_no_interrupt.add_node("generate", trip_planner.generation_node)
+graph_no_interrupt.add_node("reflect", trip_planner.reflection_node)
+graph_no_interrupt.add_node("travel_critique", trip_planner.travel_critique_node)ent prompts affect agent behavior!
 """
 
 import os
@@ -30,63 +35,63 @@ logger = logging.getLogger(__name__)
 
 
 # Default prompts for each node - students can edit these!
-DEFAULT_PLANNER_PROMPT = """You are an expert writer tasked with writing a high level outline of a short 3 paragraph essay.
+DEFAULT_PLANNER_PROMPT = """You are an expert travel planner tasked with creating a high-level outline for a trip.
 
-Write such an outline for the user provided topic. Be creative and think of interesting angles to explore.
+Create an outline for the user's travel destination and preferences. Be creative and think of unique experiences.
 
 Your outline should include:
-- Introduction hook
-- Main points (2-3 key ideas)
-- Conclusion approach
+- Trip overview (duration, best time to visit, key highlights)
+- Main activities/attractions (3-5 must-see/do items)
+- Practical considerations (budget range, transportation, accommodation suggestions)
 
-Keep it concise but engaging."""
+Keep it concise but inspiring."""
 
-DEFAULT_TRAVEL_PLAN_PROMPT = """You are a travel researcher charged with providing information that can be used when writing about travel destinations.
+DEFAULT_TRAVEL_PLAN_PROMPT = """You are a travel researcher charged with providing detailed information for trip planning.
 
-Generate a list of search queries that will gather relevant travel information. Only generate 3 queries max.
+Generate a list of search queries that will gather practical travel information. Only generate 3 queries max.
 
 Focus on:
-- Key attractions and activities
-- Different perspectives on the destination
-- Recent travel tips or examples
+- Current travel conditions and requirements (visas, weather, etc.)
+- Top attractions, activities, and experiences
+- Practical tips (budget, safety, local customs, transportation)
 
 Return your queries as a list."""
 
-DEFAULT_GENERATOR_PROMPT = """You are an essay assistant tasked with writing excellent 3-paragraph essays.
+DEFAULT_GENERATOR_PROMPT = """You are a travel itinerary planner tasked with creating detailed, practical trip plans.
 
-Use the provided research content and outline to write a compelling essay.
+Use the provided research content and outline to create a comprehensive trip itinerary.
 
 Guidelines:
-- Start with an engaging introduction
-- Support main points with research and examples
-- End with a thoughtful conclusion
-- Keep paragraphs focused and well-structured
-- Cite interesting facts from the research
+- Create a day-by-day itinerary with specific activities and timings
+- Include practical details (estimated costs, transportation, booking tips)
+- Suggest restaurants, accommodations, and local experiences
+- Provide insider tips and warnings from the research
+- Balance popular attractions with unique local experiences
 
-Write clearly and engagingly for a general audience."""
+Write clearly and practically for travelers who want actionable information."""
 
-DEFAULT_CRITIC_PROMPT = """You are a teacher grading an essay submission.
+DEFAULT_CRITIC_PROMPT = """You are an experienced travel advisor reviewing a trip itinerary.
 
-Generate critique and recommendations for the student's draft. Be constructive but thorough.
+Generate critique and recommendations for the trip plan. Be constructive but thorough.
 
 Evaluate:
-- Clarity and coherence
-- Use of evidence and examples
-- Strength of arguments
-- Writing quality and flow
-- Areas for improvement
+- Practicality and feasibility (timing, logistics, budget)
+- Balance of activities (not too rushed or too empty)
+- Coverage of must-see attractions vs. unique experiences
+- Missing important information (visas, safety, booking tips)
+- Areas for improvement or alternatives
 
-Provide specific, actionable feedback."""
+Provide specific, actionable feedback to improve the trip plan."""
 
 DEFAULT_TRAVEL_CRITIQUE_PROMPT = """You are a travel research assistant helping to address critique feedback.
 
-Generate search queries to find travel information that can help address the critique.
+Generate search queries to find additional information that addresses the specific gaps or concerns in the critique.
 Only generate 2 queries max.
 
 Focus on finding:
-- Additional travel experiences or examples
-- Different travel perspectives
-- Clarifying destination information
+- Missing practical details (costs, transportation, bookings)
+- Alternative activities or experiences
+- Clarifying information about logistics or requirements
 
 Return your queries as a list."""
 
@@ -96,17 +101,17 @@ class Queries(BaseModel):
     queries: List[str]
 
 
-class EssayState(TypedDict):
-    """State for the essay writer agent.
+class TripState(TypedDict):
+    """State for the trip planner agent.
     
     This includes both the working data AND editable prompts for each node!
     Students can modify these prompts to experiment with agent behavior.
     """
-    # Essay content
-    task: str  # The essay topic
-    plan: str  # The outline
-    draft: str  # Current essay draft
-    critique: str  # Feedback on the draft
+    # Trip planning content
+    task: str  # The trip request/destination
+    plan: str  # The trip outline
+    draft: str  # Current itinerary draft
+    critique: str  # Feedback on the itinerary
     content: List[str]  # Research content
     queries: List[str]  # Search queries used
     revision_number: int  # Current revision
@@ -130,11 +135,11 @@ class EssayState(TypedDict):
     count: Annotated[int, operator.add]
 
 
-class EssayWriterGraph:
-    """Essay Writer with editable node prompts."""
+class TripPlannerGraph:
+    """Trip Planner with editable node prompts."""
     
     def __init__(self):
-        """Initialize the essay writer graph."""
+        """Initialize the trip planner graph."""
         # Initialize Bedrock client
         AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
         AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
@@ -150,7 +155,7 @@ class EssayWriterGraph:
         self.tavily = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
         self.graph = self._build_graph()
     
-    def _get_llm(self, state: EssayState):
+    def _get_llm(self, state: TripState):
         """Get LLM with parameters from state."""
         temperature = state.get("temperature", 0.7)
         max_tokens = state.get("max_tokens", 4096)
@@ -164,12 +169,12 @@ class EssayWriterGraph:
             }
         )
     
-    def plan_node(self, state: EssayState):
-        """Planning node - creates essay outline.
+    def plan_node(self, state: TripState):
+        """Planning node - creates trip outline.
         
         Uses editable planner_prompt from state!
         """
-        logger.info(f"🗺️ [plan_node] Starting planner for task: '{state['task'][:50]}...'")
+        logger.info(f"🗺️ [plan_node] Starting planner for destination: '{state['task'][:50]}...'")
         
         # Get prompt from state (with fallback to default)
         prompt = state.get("planner_prompt", DEFAULT_PLANNER_PROMPT)
@@ -182,10 +187,10 @@ class EssayWriterGraph:
         llm = self._get_llm(state)
         response = llm.invoke(messages)
         
-        logger.info(f"✅ [plan_node] Plan created: {len(response.content)} chars")
+        logger.info(f"✅ [plan_node] Trip outline created: {len(response.content)} chars")
         
         # Add status message for user
-        status_msg = AIMessage(content=f"📋 **Step 1: Planning Complete**\n\nI've created an outline for your essay about: {state['task']}\n\n{response.content}")
+        status_msg = AIMessage(content=f"📋 **Step 1: Trip Planning Complete**\n\nI've created an outline for your trip: {state['task']}\n\n{response.content}")
         
         return {
             "plan": response.content,
@@ -193,12 +198,12 @@ class EssayWriterGraph:
             "messages": [status_msg]
         }
     
-    def travel_plan_node(self, state: EssayState):
-        """Travel planning node - generates search queries.
+    def travel_plan_node(self, state: TripState):
+        """Travel research node - generates search queries.
         
         Uses editable travel_plan_prompt from state!
         """
-        logger.info(f"🔍 [travel_plan_node] Researching for task: '{state['task'][:50]}...'")
+        logger.info(f"🔍 [travel_plan_node] Researching destination: '{state['task'][:50]}...'")
         
         prompt = state.get("travel_plan_prompt", DEFAULT_TRAVEL_PLAN_PROMPT)
         
@@ -235,8 +240,8 @@ class EssayWriterGraph:
             "messages": [status_msg]
         }
     
-    def generation_node(self, state: EssayState):
-        """Generation node - writes essay draft.
+    def generation_node(self, state: TripState):
+        """Generation node - creates trip itinerary.
         
         Uses editable generator_prompt from state!
         """
@@ -251,17 +256,17 @@ class EssayWriterGraph:
         
         messages = [
             SystemMessage(content=context),
-            HumanMessage(content=f"Topic: {state['task']}\n\nOutline:\n{state['plan']}")
+            HumanMessage(content=f"Destination/Trip: {state['task']}\n\nTrip Outline:\n{state['plan']}")
         ]
         
         llm = self._get_llm(state)
         response = llm.invoke(messages)
         
-        logger.info(f"✅ [generation_node] Draft generated: {len(response.content)} chars")
+        logger.info(f"✅ [generation_node] Itinerary generated: {len(response.content)} chars")
         
         # Add status message for user
         step_num = 3 if revision_num == 1 else 5
-        status_msg = AIMessage(content=f"✍️ **Step {step_num}: Draft {'Created' if revision_num == 1 else f'Revised (Revision {revision_num})'}**\n\n{response.content}")
+        status_msg = AIMessage(content=f"✍️ **Step {step_num}: Itinerary {'Created' if revision_num == 1 else f'Revised (Revision {revision_num})'}**\n\n{response.content}")
         
         return {
             "draft": response.content,
@@ -270,18 +275,18 @@ class EssayWriterGraph:
             "messages": [status_msg]
         }
     
-    def reflection_node(self, state: EssayState):
-        """Reflection node - critiques the essay.
+    def reflection_node(self, state: TripState):
+        """Reflection node - critiques the trip plan.
         
         Uses editable critic_prompt from state!
         """
-        logger.info(f"🤔 [reflection_node] Critiquing draft (revision {state.get('revision_number', 1)})")
+        logger.info(f"🤔 [reflection_node] Critiquing itinerary (revision {state.get('revision_number', 1)})")
         
         prompt = state.get("critic_prompt", DEFAULT_CRITIC_PROMPT)
         
         messages = [
             SystemMessage(content=prompt),
-            HumanMessage(content=f"Essay to critique:\n\n{state['draft']}")
+            HumanMessage(content=f"Trip itinerary to review:\n\n{state['draft']}")
         ]
         
         llm = self._get_llm(state)
@@ -290,7 +295,7 @@ class EssayWriterGraph:
         logger.info(f"✅ [reflection_node] Critique complete: {len(response.content)} chars")
         
         # Add status message for user
-        status_msg = AIMessage(content=f"🤔 **Step 4: Review & Feedback**\n\nHere's my critique:\n\n{response.content}")
+        status_msg = AIMessage(content=f"🤔 **Step 4: Travel Advisor Review**\n\nHere's my feedback on your itinerary:\n\n{response.content}")
         
         return {
             "critique": response.content,
@@ -298,8 +303,8 @@ class EssayWriterGraph:
             "messages": [status_msg]
         }
     
-    def travel_critique_node(self, state: EssayState):
-        """Travel planning critique node - finds info to address feedback.
+    def travel_critique_node(self, state: TripState):
+        """Travel research critique node - finds info to address feedback.
         
         Uses editable travel_critique_prompt from state!
         """
@@ -348,8 +353,8 @@ class EssayWriterGraph:
         return "reflect"
     
     def _build_graph(self):
-        """Build the essay writer graph."""
-        builder = StateGraph(EssayState)
+        """Build the trip planner graph."""
+        builder = StateGraph(TripState)
         
         # Add nodes
         builder.add_node("planner", self.plan_node)
@@ -409,20 +414,20 @@ class EssayWriterGraph:
 
 
 # Create the graph instance
-essay_writer = EssayWriterGraph()
-graph = essay_writer.graph
+trip_planner = TripPlannerGraph()
+graph = trip_planner.graph
 
 # Also create a version without interrupts for direct execution
-graph_no_interrupt = StateGraph(EssayState)
-graph_no_interrupt.add_node("planner", essay_writer.plan_node)
-graph_no_interrupt.add_node("travel_plan", essay_writer.travel_plan_node)
-graph_no_interrupt.add_node("generate", essay_writer.generation_node)
-graph_no_interrupt.add_node("reflect", essay_writer.reflection_node)
-graph_no_interrupt.add_node("travel_critique", essay_writer.travel_critique_node)
+graph_no_interrupt = StateGraph(TripState)
+graph_no_interrupt.add_node("planner", trip_planner.plan_node)
+graph_no_interrupt.add_node("travel_plan", trip_planner.travel_plan_node)
+graph_no_interrupt.add_node("generate", trip_planner.generation_node)
+graph_no_interrupt.add_node("reflect", trip_planner.reflection_node)
+graph_no_interrupt.add_node("travel_critique", trip_planner.travel_critique_node)
 graph_no_interrupt.set_entry_point("planner")
 graph_no_interrupt.add_conditional_edges(
     "generate",
-    essay_writer.should_continue,
+    trip_planner.should_continue,
     {END: END, "reflect": "reflect"}
 )
 graph_no_interrupt.add_edge("planner", "travel_plan")
@@ -430,5 +435,5 @@ graph_no_interrupt.add_edge("travel_plan", "generate")
 graph_no_interrupt.add_edge("reflect", "travel_critique")
 graph_no_interrupt.add_edge("travel_critique", "generate")
 graph_no_interrupt = graph_no_interrupt.compile(
-    checkpointer=essay_writer._get_postgres_checkpointer()
+    checkpointer=trip_planner._get_postgres_checkpointer()
 )

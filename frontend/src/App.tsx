@@ -312,33 +312,33 @@ function App() {
   // Get helpful guide message based on current state
   const getGuideMessage = () => {
     if (!currentThreadId) {
-      return '👋 Welcome! Click "New Thread" to start, then type your essay topic (e.g., "Write about artificial intelligence").';
+      return '👋 Welcome! Click "New Thread" to start, then type your trip destination or request (e.g., "Plan a 5-day trip to Tokyo").';
     }
     if (messages.length === 0) {
-      return '📝 Type your essay topic below and click "Send Message" to begin the multi-step essay writing process.';
+      return '✈️ Type your trip request below and click "Send Message" to begin the multi-step trip planning process.';
     }
     if (stateInfo?.next && stateInfo.next.length > 0) {
       const nextNode = stateInfo.next[0];
       if (nextNode === 'planner') {
-        return '📋 The planner will create an outline for your essay. Click "Execute Next Step" to start planning.';
+        return '�️ The planner will create an outline for your trip. Click "Execute Next Step" to start planning.';
       } else if (nextNode === 'generate') {
-        return '✍️ The generator will write the essay draft based on the outline and research. Click "Execute Next Step" to generate.';
+        return '📋 The itinerary generator will create a detailed day-by-day plan based on the outline and research. Click "Execute Next Step" to generate.';
       } else if (nextNode === 'reflect') {
-        return '🤔 The critic will review the draft and provide feedback. Click "Execute Next Step" to get critique.';
+        return '� The travel advisor will review the itinerary and provide feedback. Click "Execute Next Step" to get expert advice.';
       }
       return `⏸️ Ready to execute: ${nextNode}. Click "Execute Next Step" to continue.`;
     }
     if (loading) {
-      return '⏳ The AI is working on your essay. This may take a moment...';
+      return '⏳ The AI is working on your trip plan. This may take a moment...';
     }
-    return '✅ Process complete! Start a new thread for another essay, or explore the Graph Flow and State Inspector tabs.';
+    return '✅ Trip plan complete! Start a new thread for another trip, or explore the Graph Flow and State Inspector tabs.';
   };
   
   return (
     <div className="container">
       <header>
-        <h1>🎮 Essay Writer - LangGraph Playground</h1>
-        <p>Multi-node essay writing agent with editable prompts</p>
+        <h1>� Trip Planner - LangGraph Playground</h1>
+        <p>Multi-step trip planning agent with editable prompts</p>
       </header>
       
       <div className="main-content">
@@ -376,7 +376,7 @@ function App() {
             className={`tab ${activeTab === 'chat' ? 'active' : ''}`}
             onClick={() => setActiveTab('chat')}
           >
-            💬 Chat & Essay
+            💬 Chat & Trip Plan
           </button>
           <button 
             className={`tab ${activeTab === 'graph' ? 'active' : ''}`}
@@ -518,7 +518,7 @@ function App() {
                 <textarea
                   placeholder={stateInfo?.next && stateInfo.next.length > 0 
                     ? "(Optional) Add instructions or just click the button to continue..." 
-                    : "Type your essay topic... (e.g., 'Write about climate change')"}
+                    : "Type your trip request... (e.g., 'Plan a week in Bali' or '3-day adventure in Iceland')"}
                   rows={3}
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}

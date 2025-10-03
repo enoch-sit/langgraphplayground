@@ -62,7 +62,7 @@ You: "I'm doing well! How can I help you today?"
 """,
     "tool_execution_message": "Executing tool call...",
     
-    # Essay Writer prompts (for multi-node essay writing agent)
+    # Trip Planner prompts (for multi-node trip planning agent)
     "planner_prompt": """You are an expert writer tasked with writing a high level outline of a short 3 paragraph essay.
 
 Write such an outline for the user provided topic. Be creative and think of interesting angles to explore.
@@ -131,11 +131,11 @@ FIELD_DESCRIPTIONS = {
     "agent_system_prompt": "The system prompt that guides the AI agent's behavior - try modifying it!",
     "tool_execution_message": "Message shown when tools are executing",
     
-    # Essay writer fields
-    "task": "The essay topic or assignment",
-    "plan": "The essay outline created by the planner node",
-    "draft": "The current essay draft",
-    "critique": "Feedback from the critic on the essay",
+    # Trip planner fields
+    "task": "The trip destination or request",
+    "plan": "The trip outline created by the planner node",
+    "draft": "The current trip itinerary",
+    "critique": "Feedback from the travel advisor on the itinerary",
     "content": "Research content gathered from searches",
     "queries": "Search queries used to find information",
     "revision_number": "Current revision iteration (1, 2, 3...)",

@@ -4,7 +4,7 @@
  * Educational UI for editing node prompts and model parameters.
  * Students can modify prompts to see how it changes agent behavior!
  * 
- * Updated for Essay Writer Graph with multiple editable node prompts!
+ * Updated for Trip Planner Graph with multiple editable node prompts!
  */
 
 import React, { useState, useEffect } from 'react';
@@ -31,13 +31,13 @@ interface Parameters {
   max_tokens: number;
 }
 
-// Node prompt metadata for Essay Writer
-const ESSAY_WRITER_PROMPTS = [
+// Node prompt metadata for Trip Planner
+const TRIP_PLANNER_PROMPTS = [
   {
     name: 'planner_prompt',
     title: '📝 Planner',
     icon: '📝',
-    description: 'Controls how the essay outline is created',
+    description: 'Controls how the trip outline is created',
     node: 'planner'
   },
   {
@@ -58,7 +58,7 @@ const ESSAY_WRITER_PROMPTS = [
     name: 'critic_prompt',
     title: '👨‍🏫 Critic',
     icon: '👨‍🏫',
-    description: 'Controls how the essay is evaluated',
+    description: 'Controls how the trip itinerary is evaluated',
     node: 'reflect'
   },
   {
@@ -276,13 +276,13 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
       {/* Prompts Section */}
       <div className="prompt-editor-section">
         <div className="section-header">
-          <h4>📝 Essay Writer Node Prompts</h4>
+          <h4>✈️ Trip Planner Node Prompts</h4>
           <p className="section-subtitle">Each node has its own editable prompt!</p>
         </div>
 
         {prompts ? (
           <div className="prompts-list">
-            {ESSAY_WRITER_PROMPTS.map((promptInfo) => {
+            {TRIP_PLANNER_PROMPTS.map((promptInfo) => {
               const promptValue = prompts[promptInfo.name as keyof Prompts];
               const isEditing = editingPrompt === promptInfo.name;
               
@@ -364,13 +364,13 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
       <div className="prompt-editor-tips">
         <h4>💡 Experiment Ideas</h4>
         <ul>
-          <li><strong>Planner:</strong> Change to "Write a detailed 5-paragraph outline" for longer essays</li>
+          <li><strong>Planner:</strong> Change to "Create a detailed 7-day outline" for longer trips</li>
           <li><strong>Generator:</strong> Add "Use simple language for beginners" to change writing style</li>
           <li><strong>Critic:</strong> Modify to "Be extremely harsh and critical" to see stricter feedback</li>
           <li><strong>Temperature:</strong> Increase to 0.9 for more creative writing</li>
           <li><strong>Research:</strong> Change to "Focus on recent news articles only"</li>
           <li>Try making the critic prompt very encouraging vs very critical!</li>
-          <li>Experiment with different max_tokens to control essay length</li>
+          <li>Experiment with different max_tokens to control itinerary length</li>
         </ul>
       </div>
     </div>

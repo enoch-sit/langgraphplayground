@@ -14,9 +14,9 @@ import json
 
 from .graph import graph, graph_no_interrupt, memory, AgentState
 from .essay_writer_graph import (
-    graph as essay_graph,
-    graph_no_interrupt as essay_graph_no_interrupt,
-    EssayState,
+    graph as trip_graph,
+    graph_no_interrupt as trip_graph_no_interrupt,
+    TripState,
 )
 from .state_manager import StateManager, GraphRunner, create_state_manager
 from langchain_core.messages import HumanMessage, AIMessage
@@ -30,9 +30,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Use essay writer as the default graph
-graph = essay_graph
-graph_no_interrupt = essay_graph_no_interrupt
+# Use trip planner as the default graph
+graph = trip_graph
+graph_no_interrupt = trip_graph_no_interrupt
 
 # Get ROOT_PATH from environment (for nginx subpath deployment)
 ROOT_PATH = os.getenv("ROOT_PATH", "")
@@ -222,7 +222,7 @@ async def invoke_agent(input: RunInput):
         existing_state = agent.get_state(config)
 
         # If there's existing state with a task, continue from checkpoint (use None input)
-        # Otherwise, create new essay input
+        # Otherwise, create new trip input
         if existing_state.values and existing_state.values.get("task"):
             # Continue from checkpoint - resume the graph
             logger.info(
@@ -234,15 +234,15 @@ async def invoke_agent(input: RunInput):
             )
             result = agent.invoke(None, config=config)
         else:
-            # Create new input for essay writer - use message as task
+            # Create new input for trip planner - use message as task
             logger.info(
-                f"🆕 STARTING NEW graph - creating essay input with task: '{input.message[:50]}...'"
+                f"🆕 STARTING NEW graph - creating trip input with task: '{input.message[:50]}...'"
             )
 
             # Add initial user message
             from langchain_core.messages import HumanMessage
 
-            essay_input = {
+            trip_input = {
                 "task": input.message,
                 "max_revisions": 2,
                 "revision_number": 0,
@@ -256,7 +256,7 @@ async def invoke_agent(input: RunInput):
             }
 
             # Invoke agent
-            result = agent.invoke(essay_input, config=config)
+            result = agent.invoke(trip_input, config=config)
 
         # Check if interrupted (waiting for approval)
         state = agent.get_state(config)
@@ -334,7 +334,7 @@ async def stream_agent(input: RunInput):
             existing_state = agent.get_state(config)
 
             # If there's existing state with a task, continue from checkpoint (use None input)
-            # Otherwise, create new essay input
+            # Otherwise, create new trip input
             if existing_state.values and existing_state.values.get("task"):
                 # Continue from checkpoint - resume the graph
                 logger.info(
@@ -343,9 +343,9 @@ async def stream_agent(input: RunInput):
                 logger.info(f"📍 Current state.next: {existing_state.next}")
                 stream_input = None
             else:
-                # Create new input for essay writer
+                # Create new input for trip planner
                 logger.info(
-                    f"🆕 STARTING NEW stream - creating essay input with task: '{input.message[:50]}...'"
+                    f"🆕 STARTING NEW stream - creating trip input with task: '{input.message[:50]}...'"
                 )
 
                 # Add initial user message
@@ -554,7 +554,7 @@ async def get_graph_info():
         ],
         "interrupt_before": ["planner", "generate", "reflect"],
         "checkpointer": "PostgresSaver",
-        "graph_type": "essay_writer",
+        "graph_type": "trip_planner",
     }
 
 
@@ -576,7 +576,7 @@ async def get_graph_nodes():
                 "id": "planner",
                 "name": "planner",
                 "type": "function",
-                "description": "Creates a high-level essay outline based on the topic",
+                "description": "Creates a high-level trip outline based on the destination",
                 "edges_to": ["research_plan"],
                 "can_interrupt": True,
                 "interrupt_before": True,
@@ -595,7 +595,7 @@ async def get_graph_nodes():
                 "id": "generate",
                 "name": "generate",
                 "type": "function",
-                "description": "Writes the essay draft using the outline and research",
+                "description": "Creates the trip itinerary using the outline and research",
                 "edges_to": ["reflect", "END"],
                 "edges_conditional": True,
                 "can_interrupt": True,
@@ -606,7 +606,7 @@ async def get_graph_nodes():
                 "id": "reflect",
                 "name": "reflect",
                 "type": "function",
-                "description": "Critiques the essay and provides feedback",
+                "description": "Reviews the trip itinerary and provides expert feedback",
                 "edges_to": ["research_critique"],
                 "can_interrupt": True,
                 "interrupt_before": True,
@@ -625,7 +625,7 @@ async def get_graph_nodes():
                 "id": "END",
                 "name": "END",
                 "type": "exit",
-                "description": "End of graph execution - essay is complete",
+                "description": "End of graph execution - trip plan is complete",
                 "edges_to": [],
                 "can_interrupt": False,
                 "editable_prompt": None,
@@ -681,11 +681,11 @@ async def get_graph_nodes():
         "state_schema": {
             "task": {
                 "type": "string",
-                "description": "The essay topic",
+                "description": "The trip destination or request",
                 "required": True,
             },
-            "plan": {"type": "string", "description": "Essay outline"},
-            "draft": {"type": "string", "description": "Current essay draft"},
+            "plan": {"type": "string", "description": "Trip outline"},
+            "draft": {"type": "string", "description": "Current trip itinerary"},
             "critique": {"type": "string", "description": "Feedback on the draft"},
             "content": {"type": "list", "description": "Research content"},
             "queries": {"type": "list", "description": "Search queries used"},
