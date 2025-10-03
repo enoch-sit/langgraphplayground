@@ -13,16 +13,20 @@ to experiment with how different prompts affect agent behavior!
 
 import os
 import sqlite3
+import logging
 from typing import TypedDict, Annotated, List, Optional
 import operator
 
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from langchain_aws import ChatBedrock
 from langchain_core.pydantic_v1 import BaseModel
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.postgres import PostgresSaver
 from tavily import TavilyClient
 import boto3
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 # Default prompts for each node - students can edit these!
@@ -108,6 +112,9 @@ class EssayState(TypedDict):
     revision_number: int  # Current revision
     max_revisions: int  # Max allowed revisions
     
+    # Messages for chat display (accumulated log of all steps)
+    messages: Annotated[List[BaseMessage], operator.add]
+    
     # Editable prompts for each node
     planner_prompt: Optional[str]
     travel_plan_prompt: Optional[str]
@@ -162,6 +169,8 @@ class EssayWriterGraph:
         
         Uses editable planner_prompt from state!
         """
+        logger.info(f"🗺️ [plan_node] Starting planner for task: '{state['task'][:50]}...'")
+        
         # Get prompt from state (with fallback to default)
         prompt = state.get("planner_prompt", DEFAULT_PLANNER_PROMPT)
         
@@ -173,9 +182,15 @@ class EssayWriterGraph:
         llm = self._get_llm(state)
         response = llm.invoke(messages)
         
+        logger.info(f"✅ [plan_node] Plan created: {len(response.content)} chars")
+        
+        # Add status message for user
+        status_msg = AIMessage(content=f"📋 **Step 1: Planning Complete**\n\nI've created an outline for your essay about: {state['task']}\n\n{response.content}")
+        
         return {
             "plan": response.content,
-            "count": 1
+            "count": 1,
+            "messages": [status_msg]
         }
     
     def travel_plan_node(self, state: EssayState):
@@ -183,6 +198,8 @@ class EssayWriterGraph:
         
         Uses editable travel_plan_prompt from state!
         """
+        logger.info(f"🔍 [travel_plan_node] Researching for task: '{state['task'][:50]}...'")
+        
         prompt = state.get("travel_plan_prompt", DEFAULT_TRAVEL_PLAN_PROMPT)
         
         llm = self._get_llm(state)
@@ -191,20 +208,31 @@ class EssayWriterGraph:
             HumanMessage(content=state['task'])
         ])
         
+        logger.info(f"🔍 [travel_plan_node] Generated {len(queries_obj.queries)} search queries")
+        
         # Execute searches
         content = []
         for query in queries_obj.queries[:3]:
             try:
+                logger.info(f"🌐 [travel_plan_node] Searching: '{query}'")
                 response = self.tavily.search(query=query, max_results=2)
                 for result in response.get('results', []):
                     content.append(result['content'])
             except Exception as e:
+                logger.error(f"❌ [travel_plan_node] Search error for '{query}': {e}")
                 print(f"Search error for '{query}': {e}")
+        
+        logger.info(f"✅ [travel_plan_node] Research complete: {len(content)} sources found")
+        
+        # Add status message for user
+        queries_text = "\n".join([f"- {q}" for q in queries_obj.queries[:3]])
+        status_msg = AIMessage(content=f"🔍 **Step 2: Research Complete**\n\nI searched for:\n{queries_text}\n\nFound {len(content)} relevant sources.")
         
         return {
             "content": content,
             "queries": queries_obj.queries,
-            "count": 1
+            "count": 1,
+            "messages": [status_msg]
         }
     
     def generation_node(self, state: EssayState):
@@ -212,6 +240,9 @@ class EssayWriterGraph:
         
         Uses editable generator_prompt from state!
         """
+        revision_num = state.get("revision_number", 0) + 1
+        logger.info(f"✍️ [generation_node] Generating draft (revision {revision_num})")
+        
         prompt = state.get("generator_prompt", DEFAULT_GENERATOR_PROMPT)
         
         # Build context with research
@@ -226,10 +257,17 @@ class EssayWriterGraph:
         llm = self._get_llm(state)
         response = llm.invoke(messages)
         
+        logger.info(f"✅ [generation_node] Draft generated: {len(response.content)} chars")
+        
+        # Add status message for user
+        step_num = 3 if revision_num == 1 else 5
+        status_msg = AIMessage(content=f"✍️ **Step {step_num}: Draft {'Created' if revision_num == 1 else f'Revised (Revision {revision_num})'}**\n\n{response.content}")
+        
         return {
             "draft": response.content,
-            "revision_number": state.get("revision_number", 0) + 1,
-            "count": 1
+            "revision_number": revision_num,
+            "count": 1,
+            "messages": [status_msg]
         }
     
     def reflection_node(self, state: EssayState):
@@ -237,6 +275,8 @@ class EssayWriterGraph:
         
         Uses editable critic_prompt from state!
         """
+        logger.info(f"🤔 [reflection_node] Critiquing draft (revision {state.get('revision_number', 1)})")
+        
         prompt = state.get("critic_prompt", DEFAULT_CRITIC_PROMPT)
         
         messages = [
@@ -247,9 +287,15 @@ class EssayWriterGraph:
         llm = self._get_llm(state)
         response = llm.invoke(messages)
         
+        logger.info(f"✅ [reflection_node] Critique complete: {len(response.content)} chars")
+        
+        # Add status message for user
+        status_msg = AIMessage(content=f"🤔 **Step 4: Review & Feedback**\n\nHere's my critique:\n\n{response.content}")
+        
         return {
             "critique": response.content,
-            "count": 1
+            "count": 1,
+            "messages": [status_msg]
         }
     
     def travel_critique_node(self, state: EssayState):
@@ -257,6 +303,8 @@ class EssayWriterGraph:
         
         Uses editable travel_critique_prompt from state!
         """
+        logger.info(f"🔍 [travel_critique_node] Researching to address critique")
+        
         prompt = state.get("travel_critique_prompt", DEFAULT_TRAVEL_CRITIQUE_PROMPT)
         
         llm = self._get_llm(state)
@@ -265,19 +313,32 @@ class EssayWriterGraph:
             HumanMessage(content=state['critique'])
         ])
         
+        logger.info(f"🔍 [travel_critique_node] Generated {len(queries_obj.queries)} follow-up queries")
+        
         # Execute searches
         content = state.get('content', []).copy()
+        new_sources = 0
         for query in queries_obj.queries[:2]:
             try:
+                logger.info(f"🌐 [travel_critique_node] Searching: '{query}'")
                 response = self.tavily.search(query=query, max_results=2)
                 for result in response.get('results', []):
                     content.append(result['content'])
+                    new_sources += 1
             except Exception as e:
+                logger.error(f"❌ [travel_critique_node] Search error for '{query}': {e}")
                 print(f"Search error for '{query}': {e}")
+        
+        logger.info(f"✅ [travel_critique_node] Additional research complete: {new_sources} new sources")
+        
+        # Add status message for user
+        queries_text = "\n".join([f"- {q}" for q in queries_obj.queries[:2]])
+        status_msg = AIMessage(content=f"🔍 **Additional Research**\n\nTo address the feedback, I searched for:\n{queries_text}\n\nFound {new_sources} additional sources. Now revising...")
         
         return {
             "content": content,
-            "count": 1
+            "count": 1,
+            "messages": [status_msg]
         }
     
     def should_continue(self, state):

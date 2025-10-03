@@ -227,6 +227,10 @@ async def invoke_agent(input: RunInput):
         else:
             # Create new input for essay writer - use message as task
             logger.info(f"🆕 STARTING NEW graph - creating essay input with task: '{input.message[:50]}...'")
+            
+            # Add initial user message
+            from langchain_core.messages import HumanMessage
+            
             essay_input = {
                 "task": input.message,
                 "max_revisions": 2,
@@ -236,7 +240,8 @@ async def invoke_agent(input: RunInput):
                 "draft": "",
                 "critique": "",
                 "content": [],
-                "queries": []
+                "queries": [],
+                "messages": [HumanMessage(content=input.message)]
             }
             
             # Invoke agent
@@ -307,6 +312,10 @@ async def stream_agent(input: RunInput):
             else:
                 # Create new input for essay writer
                 logger.info(f"🆕 STARTING NEW stream - creating essay input with task: '{input.message[:50]}...'")
+                
+                # Add initial user message
+                from langchain_core.messages import HumanMessage
+                
                 stream_input = {
                     "task": input.message,
                     "max_revisions": 2,
@@ -316,7 +325,8 @@ async def stream_agent(input: RunInput):
                     "draft": "",
                     "critique": "",
                     "content": [],
-                    "queries": []
+                    "queries": [],
+                    "messages": [HumanMessage(content=input.message)]
                 }
             
             for event in agent.stream(stream_input, config=config):
