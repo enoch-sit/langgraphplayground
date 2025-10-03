@@ -43,7 +43,7 @@ function App() {
       setCurrentThreadId(response.thread_id);
       setMessages([]);
       setPendingToolCall(null);
-      addSystemMessage(`Thread created: ${response.thread_id.slice(0, 8)}...`);
+      console.log(`✅ Thread created: ${response.thread_id}`);
     } catch (error) {
       alert(`Failed to create thread: ${error}`);
     }
@@ -93,9 +93,13 @@ function App() {
         checkpointId: checkpointState.checkpoint_id,
       });
       
-      addSystemMessage(`⏰ Traveled to checkpoint ${checkpointId.slice(0, 8)}... (${checkpointState.messages.length} messages)`);
+      console.log(`⏰ Traveled to checkpoint: ${checkpointId}`);
     } catch (error) {
-      addSystemMessage(`Error traveling to checkpoint: ${error}`);
+      console.error(`Error traveling to checkpoint:`, error);
+      setMessages(prev => [...prev, {
+        type: 'SystemMessage',
+        content: `Error: ${error}`,
+      }]);
     } finally {
       setLoading(false);
     }
@@ -107,18 +111,21 @@ function App() {
     
     try {
       setLoading(true);
-      addSystemMessage(`▶️ Resuming from checkpoint ${checkpointId.slice(0, 8)}...`);
+      console.log(`▶️ Resuming from checkpoint: ${checkpointId}`);
       
       // Resume execution from this checkpoint
-      const response = await api.resumeFromCheckpoint(currentThreadId, checkpointId);
+      await api.resumeFromCheckpoint(currentThreadId, checkpointId);
       
       // Reload current state to see the results
       await loadState();
       
-      const msgCount = response.messages?.length || 0;
-      addSystemMessage(`✅ Resumed successfully - ${msgCount} messages in final state`);
+      console.log(`✅ Resumed successfully`);
     } catch (error) {
-      addSystemMessage(`Error resuming from checkpoint: ${error}`);
+      console.error(`Error resuming:`, error);
+      setMessages(prev => [...prev, {
+        type: 'SystemMessage',
+        content: `Error: ${error}`,
+      }]);
     } finally {
       setLoading(false);
     }
@@ -175,7 +182,6 @@ function App() {
     } else if (shouldContinue) {
       // Continuing interrupted graph
       console.log('▶️ [sendMessage] Continuing interrupted graph from node:', stateInfo?.next?.[0]);
-      addSystemMessage('▶️ Continuing graph execution...');
     }
     
     try {
@@ -190,9 +196,9 @@ function App() {
         console.log('📨 [sendMessage] Stream event:', event);
         
         if (event.event === 'node') {
-          // Update visual feedback
+          // Update visual feedback for graph
+          console.log(`⚙️ [sendMessage] Executing node: ${event.node}`);
           setCurrentNode(event.node);
-          addSystemMessage(`⚙️ Executing node: ${event.node}`);
           
           // Add the message to the chat if present
           if (event.data.message) {
@@ -203,35 +209,31 @@ function App() {
             }]);
           }
           
-          // Show intermediate results
-          if (event.data.plan) {
-            addSystemMessage(`📋 Plan updated: ${event.data.plan.substring(0, 100)}...`);
-          }
-          if (event.data.draft) {
-            addSystemMessage(`✍️ Draft updated (${event.data.draft.length} chars)`);
-          }
-          if (event.data.critique) {
-            addSystemMessage(`🤔 Critique: ${event.data.critique.substring(0, 100)}...`);
-          }
-          if (event.data.queries && event.data.queries.length > 0) {
-            addSystemMessage(`🔍 Research queries: ${event.data.queries.join(', ')}`);
-          }
         } else if (event.event === 'interrupt') {
           // Graph interrupted at HITL checkpoint
           const nextNode = event.next && event.next.length > 0 ? event.next[0] : 'unknown';
           console.log('⏸️ [sendMessage] Graph INTERRUPTED at node:', nextNode);
           setCurrentNode(nextNode);
           setExecutingEdge(null);
-          addSystemMessage(`⏸️ Graph paused at node: "${nextNode}". Click "Send Message" again to continue.`);
+          
+          // Add a minimal pause message
+          setMessages(prev => [...prev, {
+            type: 'SystemMessage',
+            content: `⏸️ Paused for review. Click "Send Message" to continue.`,
+          }]);
+          
         } else if (event.event === 'complete') {
           // Graph execution completed
           console.log('✅ [sendMessage] Graph COMPLETED');
           setCurrentNode(null);
           setExecutingEdge(null);
-          addSystemMessage('✅ Graph execution complete!');
+          
         } else if (event.event === 'error') {
           console.error('❌ [sendMessage] Stream error:', event.error);
-          addSystemMessage(`❌ Error: ${event.error}`);
+          setMessages(prev => [...prev, {
+            type: 'SystemMessage',
+            content: `❌ Error: ${event.error}`,
+          }]);
         }
       }
       
@@ -240,7 +242,10 @@ function App() {
       
     } catch (error) {
       console.error('❌ [sendMessage] Error occurred:', error);
-      addSystemMessage(`Error: ${error}`);
+      setMessages(prev => [...prev, {
+        type: 'SystemMessage',
+        content: `❌ Error: ${error}`,
+      }]);
     } finally {
       console.log('🏁 [sendMessage] Setting loading to false');
       setLoading(false);
@@ -252,7 +257,7 @@ function App() {
     if (!currentThreadId) return;
     
     setPendingToolCall(null);
-    addSystemMessage(approved ? '✅ Tool call approved' : '❌ Tool call rejected');
+    console.log(approved ? '✅ Tool call approved' : '❌ Tool call rejected');
     setLoading(true);
     
     try {
@@ -278,20 +283,16 @@ function App() {
       setExecutingEdge(null);
       await loadState(); // This now auto-loads checkpoints
     } catch (error) {
-      addSystemMessage(`Error: ${error}`);
+      console.error(`Error in tool approval:`, error);
+      setMessages(prev => [...prev, {
+        type: 'SystemMessage',
+        content: `Error: ${error}`,
+      }]);
       setCurrentNode(null);
       setExecutingEdge(null);
     } finally {
       setLoading(false);
     }
-  };
-  
-  // Add system message
-  const addSystemMessage = (content: string) => {
-    setMessages(prev => [...prev, {
-      type: 'SystemMessage',
-      content,
-    }]);
   };
   
   // Handle Enter key
