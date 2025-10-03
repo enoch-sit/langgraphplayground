@@ -4,8 +4,7 @@ This utility class provides clean abstractions for state management,
 making the backend code more organized and easier to maintain.
 """
 
-from typing import Dict, Any, Optional, List, TypedDict
-from langgraph.graph import CompiledGraph
+from typing import Dict, Any, Optional, List, TypedDict, TYPE_CHECKING
 from langchain_core.messages import (
     HumanMessage,
     AIMessage,
@@ -13,6 +12,9 @@ from langchain_core.messages import (
     ToolMessage,
     BaseMessage
 )
+
+if TYPE_CHECKING:
+    from langgraph.pregel import Pregel
 
 
 class StateManager:
@@ -26,11 +28,11 @@ class StateManager:
     - Formatting state for API responses
     """
     
-    def __init__(self, graph: CompiledGraph, thread_id: str):
+    def __init__(self, graph: Any, thread_id: str):
         """Initialize state manager.
         
         Args:
-            graph: Compiled LangGraph instance
+            graph: Compiled LangGraph instance (Pregel/CompiledGraph)
             thread_id: Thread identifier
         """
         self.graph = graph
@@ -381,11 +383,11 @@ class GraphRunner:
     Handles thread lifecycle, execution flow, and integrates with StateManager.
     """
     
-    def __init__(self, graph: CompiledGraph, max_iterations: int = 10):
+    def __init__(self, graph: Any, max_iterations: int = 10):
         """Initialize graph runner.
         
         Args:
-            graph: Compiled LangGraph instance
+            graph: Compiled LangGraph instance (Pregel/CompiledGraph)
             max_iterations: Maximum iterations per execution
         """
         self.graph = graph
@@ -447,11 +449,11 @@ class GraphRunner:
 
 
 # Convenience function for creating state managers
-def create_state_manager(graph: CompiledGraph, thread_id: str) -> StateManager:
+def create_state_manager(graph: Any, thread_id: str) -> StateManager:
     """Create a StateManager instance.
     
     Args:
-        graph: Compiled LangGraph instance
+        graph: Compiled LangGraph instance (Pregel/CompiledGraph)
         thread_id: Thread identifier
         
     Returns:
