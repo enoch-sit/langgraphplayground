@@ -2,6 +2,12 @@
 
 This utility class provides clean abstractions for state management,
 making the backend code more organized and easier to maintain.
+
+Educational Enhancement:
+- Support for editable node prompts
+- Comprehensive state field viewing and editing
+- Reset functionality for classroom experiments
+- Better introspection and documentation
 """
 
 from typing import Dict, Any, Optional, List, TypedDict, TYPE_CHECKING
@@ -15,6 +21,55 @@ from langchain_core.messages import (
 
 if TYPE_CHECKING:
     from langgraph.pregel import Pregel
+
+
+# Default prompts for educational purposes - students can modify these
+DEFAULT_PROMPTS = {
+    "agent_system_prompt": """You are a helpful AI assistant with access to tools. When you need to use a tool, respond with a JSON object in this exact format:
+{"tool": "tool_name", "args": {"arg1": "value1", "arg2": "value2"}}
+
+Available tools:
+1. tavily_search_results_json: Search the web. Args: {"query": "search query"}
+2. get_travel_budget: Calculate travel budget. Args: {"destination": "city", "days": number}
+3. calculator: Evaluate math expressions. Args: {"expression": "2+2*3"}
+
+CRITICAL RULES FOR MULTI-STEP TASKS:
+- Use ONE tool at a time, then wait for results
+- After receiving tool results, check if you need ANOTHER tool before responding to the user
+- If the user asks for multiple actions, complete them sequentially using tools
+- ALWAYS use the calculator tool for math, even if the calculation seems simple
+
+IMPORTANT: 
+- If you need to use a tool, respond ONLY with the JSON object, no other text.
+- If you don't need a tool, respond normally with text.
+- Use tools when the user asks for information you don't have or needs calculation.
+
+Examples:
+User: "Search for hotels in Paris"
+You: {"tool": "tavily_search_results_json", "args": {"query": "hotels in Paris"}}
+
+User: "What's 25 * 48?"
+You: {"tool": "calculator", "args": {"expression": "25*48"}}
+
+User: "Search for Python tutorials then calculate 2+2"
+Step 1: {"tool": "tavily_search_results_json", "args": {"query": "Python tutorials"}}
+[After receiving search results]
+Step 2: {"tool": "calculator", "args": {"expression": "2+2"}}
+
+User: "Hello, how are you?"
+You: "I'm doing well! How can I help you today?"
+""",
+    "tool_execution_message": "Executing tool call..."
+}
+
+# Field metadata for educational tooltips
+FIELD_DESCRIPTIONS = {
+    "messages": "The conversation history including all messages (human, AI, tool calls, tool results)",
+    "agent_system_prompt": "The system prompt that guides the AI agent's behavior - try modifying it!",
+    "tool_execution_message": "Message shown when tools are executing",
+    "temperature": "Controls randomness in AI responses (0.0 = deterministic, 1.0 = creative)",
+    "max_iterations": "Maximum number of graph execution steps before stopping"
+}
 
 
 class StateManager:
@@ -185,7 +240,8 @@ class StateManager:
             field_info = {
                 'type': self._get_type_name(value),
                 'editable': True,  # Most fields are editable
-                'value': self._serialize_value(value)
+                'value': self._serialize_value(value),
+                'description': FIELD_DESCRIPTIONS.get(key, f"State field: {key}")
             }
             
             # Add type-specific info
@@ -194,21 +250,93 @@ class StateManager:
                 
                 # Special handling for messages
                 if key == 'messages' and value and isinstance(value[0], BaseMessage):
-                    field_info['description'] = "Conversation history including human, AI, and tool messages"
                     field_info['value'] = self._serialize_messages(value)
             
             elif isinstance(value, dict):
                 field_info['keys'] = list(value.keys())
             
             elif isinstance(value, (int, float)):
-                field_info['description'] = f"Numeric value: {value}"
+                field_info['numeric'] = True
             
             elif isinstance(value, str):
-                field_info['description'] = f"String value (length: {len(value)})"
+                field_info['length'] = len(value)
             
             fields_info[key] = field_info
         
         return fields_info
+    
+    def get_prompt(self, prompt_name: str) -> str:
+        """Get a specific prompt value.
+        
+        Args:
+            prompt_name: Name of the prompt (e.g., 'agent_system_prompt')
+            
+        Returns:
+            Prompt text, or default if not found in state
+        """
+        # Try to get from state first
+        prompt = self.get_state_value(prompt_name)
+        
+        # Fall back to defaults
+        if prompt is None:
+            prompt = DEFAULT_PROMPTS.get(prompt_name, "")
+        
+        return prompt
+    
+    def update_prompt(self, prompt_name: str, new_prompt: str, as_node: Optional[str] = None):
+        """Update a prompt in the state.
+        
+        Args:
+            prompt_name: Name of the prompt to update
+            new_prompt: New prompt text
+            as_node: Node to attribute the update to
+        """
+        self.update_state_value(prompt_name, new_prompt, as_node=as_node)
+    
+    def reset_prompt_to_default(self, prompt_name: str, as_node: Optional[str] = None):
+        """Reset a prompt to its default value.
+        
+        Args:
+            prompt_name: Name of the prompt to reset
+            as_node: Node to attribute the update to
+        """
+        default_prompt = DEFAULT_PROMPTS.get(prompt_name)
+        if default_prompt:
+            self.update_state_value(prompt_name, default_prompt, as_node=as_node)
+    
+    def get_all_prompts(self) -> Dict[str, str]:
+        """Get all available prompts (current values + defaults).
+        
+        Returns:
+            Dict of prompt names to their current values
+        """
+        current_state = self.get_current_state()
+        prompts = {}
+        
+        # Get all default prompts
+        for prompt_name in DEFAULT_PROMPTS.keys():
+            # Check if it's in state, otherwise use default
+            prompts[prompt_name] = current_state.values.get(prompt_name, DEFAULT_PROMPTS[prompt_name])
+        
+        return prompts
+    
+    def initialize_prompts_in_state(self, as_node: Optional[str] = None):
+        """Initialize prompts in the state if they don't exist.
+        
+        This is useful for making prompts editable in new threads.
+        
+        Args:
+            as_node: Node to attribute the initialization to
+        """
+        current_state = self.get_current_state()
+        updates = {}
+        
+        for prompt_name, default_value in DEFAULT_PROMPTS.items():
+            if prompt_name not in current_state.values:
+                updates[prompt_name] = default_value
+        
+        if updates:
+            self.update_state_values(updates, as_node=as_node)
     
     def _get_type_name(self, value: Any) -> str:
         """Get human-readable type name."""

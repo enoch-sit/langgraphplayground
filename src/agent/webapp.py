@@ -478,6 +478,220 @@ async def get_graph_nodes():
 
 @app.get("/threads/{thread_id}/state/fields")
 async def get_state_fields(thread_id: str):
+    """Get available state fields and their current values.
+    
+    Educational endpoint: Shows all editable state fields including prompts!
+    """
+    try:
+        state_manager = create_state_manager(graph, thread_id)
+        state = state_manager.get_current_state()
+        
+        if not state.values:
+            raise HTTPException(status_code=404, detail="Thread state not found")
+        
+        # Use StateManager's generic field introspection
+        fields_info = state_manager.get_state_fields_info()
+        display_info = state_manager.get_display_info()
+        
+        return {
+            "thread_id": thread_id,
+            "fields": fields_info,
+            "metadata": {
+                "next": display_info['next'],
+                "checkpoint_id": display_info['checkpoint_id'],
+                "parent_checkpoint_id": display_info['parent_checkpoint_id']
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Error getting state fields: {str(e)}")
+
+
+@app.get("/threads/{thread_id}/prompts")
+async def get_prompts(thread_id: str):
+    """Get all editable prompts for the thread.
+    
+    Educational endpoint: Students can see and modify prompts to experiment!
+    """
+    try:
+        state_manager = create_state_manager(graph, thread_id)
+        prompts = state_manager.get_all_prompts()
+        
+        return {
+            "thread_id": thread_id,
+            "prompts": prompts,
+            "available_prompts": list(prompts.keys())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting prompts: {str(e)}")
+
+
+@app.get("/threads/{thread_id}/prompts/{prompt_name}")
+async def get_prompt(thread_id: str, prompt_name: str):
+    """Get a specific prompt.
+    
+    Educational endpoint: View individual prompt content.
+    """
+    try:
+        state_manager = create_state_manager(graph, thread_id)
+        prompt_value = state_manager.get_prompt(prompt_name)
+        
+        return {
+            "thread_id": thread_id,
+            "prompt_name": prompt_name,
+            "prompt": prompt_value
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting prompt: {str(e)}")
+
+
+@app.post("/threads/{thread_id}/prompts/{prompt_name}")
+async def update_prompt(thread_id: str, prompt_name: str, request: Request):
+    """Update a specific prompt.
+    
+    Educational endpoint: Students can modify prompts to see how it changes behavior!
+    
+    Request body: {"prompt": "new prompt text"}
+    """
+    try:
+        body = await request.json()
+        new_prompt = body.get("prompt", "")
+        
+        if not new_prompt:
+            raise HTTPException(status_code=400, detail="Prompt text is required")
+        
+        state_manager = create_state_manager(graph, thread_id)
+        state_manager.update_prompt(prompt_name, new_prompt)
+        
+        return {
+            "status": "updated",
+            "thread_id": thread_id,
+            "prompt_name": prompt_name,
+            "prompt_length": len(new_prompt)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating prompt: {str(e)}")
+
+
+@app.post("/threads/{thread_id}/prompts/{prompt_name}/reset")
+async def reset_prompt(thread_id: str, prompt_name: str):
+    """Reset a prompt to its default value.
+    
+    Educational endpoint: Reset experiments back to default!
+    """
+    try:
+        state_manager = create_state_manager(graph, thread_id)
+        state_manager.reset_prompt_to_default(prompt_name)
+        
+        default_prompt = state_manager.get_prompt(prompt_name)
+        
+        return {
+            "status": "reset",
+            "thread_id": thread_id,
+            "prompt_name": prompt_name,
+            "prompt": default_prompt
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error resetting prompt: {str(e)}")
+
+
+@app.post("/threads/{thread_id}/prompts/initialize")
+async def initialize_prompts(thread_id: str):
+    """Initialize editable prompts in thread state.
+    
+    Educational endpoint: Sets up prompts in state so students can edit them!
+    Should be called after creating a new thread.
+    """
+    try:
+        state_manager = create_state_manager(graph, thread_id)
+        state_manager.initialize_prompts_in_state()
+        
+        prompts = state_manager.get_all_prompts()
+        
+        return {
+            "status": "initialized",
+            "thread_id": thread_id,
+            "prompts_initialized": list(prompts.keys())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error initializing prompts: {str(e)}")
+
+
+@app.get("/threads/{thread_id}/parameters")
+async def get_parameters(thread_id: str):
+    """Get editable model parameters (temperature, max_tokens, etc).
+    
+    Educational endpoint: Students can adjust LLM parameters!
+    """
+    try:
+        state_manager = create_state_manager(graph, thread_id)
+        state = state_manager.get_current_state()
+        
+        parameters = {
+            "temperature": state.values.get("temperature", 0.1),
+            "max_tokens": state.values.get("max_tokens", 4096)
+        }
+        
+        return {
+            "thread_id": thread_id,
+            "parameters": parameters,
+            "descriptions": {
+                "temperature": "Controls randomness (0.0-1.0). Lower = more deterministic",
+                "max_tokens": "Maximum tokens in LLM response"
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting parameters: {str(e)}")
+
+
+@app.post("/threads/{thread_id}/parameters")
+async def update_parameters(thread_id: str, request: Request):
+    """Update model parameters.
+    
+    Educational endpoint: Experiment with temperature and token limits!
+    
+    Request body: {"temperature": 0.5, "max_tokens": 2048}
+    """
+    try:
+        body = await request.json()
+        
+        updates = {}
+        if "temperature" in body:
+            temp = float(body["temperature"])
+            if not 0.0 <= temp <= 1.0:
+                raise HTTPException(status_code=400, detail="Temperature must be between 0.0 and 1.0")
+            updates["temperature"] = temp
+        
+        if "max_tokens" in body:
+            tokens = int(body["max_tokens"])
+            if tokens < 1:
+                raise HTTPException(status_code=400, detail="max_tokens must be positive")
+            updates["max_tokens"] = tokens
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No valid parameters provided")
+        
+        state_manager = create_state_manager(graph, thread_id)
+        state_manager.update_state_values(updates)
+        
+        return {
+            "status": "updated",
+            "thread_id": thread_id,
+            "parameters": updates
+        }
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid parameter value: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating parameters: {str(e)}")
+
+
+@app.get("/threads/{thread_id}/state/fields")
+async def get_state_fields(thread_id: str):
     """Get available state fields and their current values."""
     try:
         state_manager = create_state_manager(graph, thread_id)

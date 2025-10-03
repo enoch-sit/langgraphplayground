@@ -54,10 +54,13 @@ You: "I'm doing well! How can I help you today?"
 """
 
 
-# Define agent state
+# Define agent state with editable prompts
 class AgentState(TypedDict):
-    """The agent's working memory."""
+    """The agent's working memory - now includes editable prompts for classroom use!"""
     messages: Annotated[list, add_messages]
+    agent_system_prompt: Optional[str]  # Editable system prompt
+    temperature: Optional[float]  # Editable temperature
+    max_tokens: Optional[int]  # Editable max tokens
 
 
 def parse_tool_call(content: str) -> Optional[dict]:
@@ -111,8 +114,17 @@ def parse_tool_call(content: str) -> Optional[dict]:
 
 
 def call_model(state: AgentState):
-    """Call the AI model with NLP tool detection."""
+    """Call the AI model with NLP tool detection.
+    
+    Now supports editable prompts and parameters from state!
+    Students can modify these to experiment with agent behavior.
+    """
     messages = state["messages"]
+    
+    # Get editable prompts/parameters from state (with defaults)
+    system_prompt = state.get("agent_system_prompt", SYSTEM_PROMPT)
+    temperature = state.get("temperature", 0.1)
+    max_tokens = state.get("max_tokens", 4096)
     
     # Initialize Bedrock client
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
@@ -130,13 +142,13 @@ def call_model(state: AgentState):
         client=bedrock_runtime,
         model_id="amazon.nova-lite-v1:0",
         model_kwargs={
-            "temperature": 0.1,  # Very low temperature for consistent tool detection (was 0.3)
-            "max_tokens": 4096
+            "temperature": temperature,
+            "max_tokens": max_tokens
         }
     )
     
-    # Prepend system message with tool instructions
-    messages_with_system = [HumanMessage(content=SYSTEM_PROMPT)] + messages
+    # Prepend system message with tool instructions (now editable!)
+    messages_with_system = [HumanMessage(content=system_prompt)] + messages
     
     # Get LLM response
     response = llm.invoke(messages_with_system)
