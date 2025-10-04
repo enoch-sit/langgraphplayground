@@ -217,6 +217,12 @@ function App() {
           setCurrentNode(nextNode);
           setExecutingEdge(null);
           
+          // If there's a pending tool call (interrupted at "tools" node), show approval UI
+          if (event.pending_tool_call) {
+            console.log('🛠️ [sendMessage] Tool approval required:', event.pending_tool_call);
+            setPendingToolCall(event.pending_tool_call);
+          }
+          
         } else if (event.event === 'complete') {
           // Graph execution completed
           console.log('✅ [sendMessage] Graph COMPLETED');

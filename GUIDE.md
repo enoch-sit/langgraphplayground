@@ -6,16 +6,112 @@
 
 ## 📋 Table of Contents
 
-1. [Quick Start](#-quick-start)
-2. [What This Is](#-what-this-is)
-3. [Architecture](#-architecture)
-4. [Setup & Installation](#-setup--installation)
-5. [React Frontend (Optional)](#-react-frontend-optional)
-6. [Deployment](#-deployment)
-7. [How It Works](#-how-it-works)
-8. [API Reference](#-api-reference)
-9. [Troubleshooting](#-troubleshooting)
-10. [Customization](#-customization)
+- [🚀 LangGraph Playground - Complete Guide](#-langgraph-playground---complete-guide)
+  - [📋 Table of Contents](#-table-of-contents)
+  - [⚡ Quick Start](#-quick-start)
+    - [Windows (Simplest)](#windows-simplest)
+    - [Docker](#docker)
+    - [Manual](#manual)
+  - [🎯 What This Is](#-what-this-is)
+    - [Why This Exists](#why-this-exists)
+  - [🏗️ Architecture](#️-architecture)
+    - [System Overview](#system-overview)
+    - [Key Components](#key-components)
+    - [Single-Port Design](#single-port-design)
+  - [🔧 Setup \& Installation](#-setup--installation)
+    - [Prerequisites](#prerequisites)
+    - [Step 1: Clone \& Install](#step-1-clone--install)
+    - [Step 2: Configure Environment](#step-2-configure-environment)
+    - [Step 3: Run](#step-3-run)
+    - [Step 4: Verify](#step-4-verify)
+  - [⚛️ React Frontend (Optional)](#️-react-frontend-optional)
+    - [Why Use the React Version?](#why-use-the-react-version)
+    - [React Setup (Quick Start)](#react-setup-quick-start)
+      - [Windows](#windows)
+      - [Linux/Mac](#linuxmac)
+      - [Manual Setup](#manual-setup)
+    - [Development Workflow](#development-workflow)
+    - [Production Build](#production-build)
+    - [Base Path Handling (BULLETPROOF! 🎯)](#base-path-handling-bulletproof-)
+      - [1. Vite Configuration (`frontend/vite.config.ts`)](#1-vite-configuration-frontendviteconfigts)
+      - [2. FastAPI Asset Mounting (`src/agent/webapp.py`)](#2-fastapi-asset-mounting-srcagentwebapppy)
+      - [3. Nginx Configuration](#3-nginx-configuration)
+      - [4. Environment Variables](#4-environment-variables)
+    - [React Project Structure](#react-project-structure)
+    - [TypeScript Benefits](#typescript-benefits)
+    - [Switching Between UIs](#switching-between-uis)
+    - [Vanilla `index.html` - Fallback UI](#vanilla-indexhtml---fallback-ui)
+    - [React Development Tips](#react-development-tips)
+    - [Troubleshooting React](#troubleshooting-react)
+      - [Port 3000 already in use](#port-3000-already-in-use)
+      - [npm install fails](#npm-install-fails)
+      - [React build not showing](#react-build-not-showing)
+      - [TypeScript errors](#typescript-errors)
+  - [🚀 Deployment](#-deployment)
+    - [Local Development (Already Working!)](#local-development-already-working)
+    - [Production Deployment Guide](#production-deployment-guide)
+      - [Prerequisites](#prerequisites-1)
+      - [Step 1: Server Setup](#step-1-server-setup)
+      - [Step 2: Configure Environment](#step-2-configure-environment-1)
+      - [Step 3: Deploy with Docker](#step-3-deploy-with-docker)
+      - [Step 4: Configure Nginx](#step-4-configure-nginx)
+        - [Why Two Files?](#why-two-files)
+        - [How It Works](#how-it-works)
+      - [Your Server Setup](#your-server-setup)
+      - [WebSocket Security: WS vs WSS](#websocket-security-ws-vs-wss)
+      - [Key Configuration Details](#key-configuration-details)
+      - [Apply Configuration](#apply-configuration)
+      - [Access](#access)
+    - [Docker Production Deployment](#docker-production-deployment)
+      - [Understanding ROOT\_PATH for Nginx](#understanding-root_path-for-nginx)
+    - [Complete Production Deployment Summary](#complete-production-deployment-summary)
+  - [💡 How It Works](#-how-it-works)
+    - [NLP-Based Tool Detection](#nlp-based-tool-detection)
+      - [1. System Prompt](#1-system-prompt)
+      - [2. Response Parsing](#2-response-parsing)
+      - [3. Mock ToolCall Creation](#3-mock-toolcall-creation)
+    - [Human-in-the-Loop (HITL)](#human-in-the-loop-hitl)
+      - [Graph Configuration](#graph-configuration)
+      - [Workflow](#workflow)
+      - [API Flow](#api-flow)
+    - [State Management](#state-management)
+  - [📚 API Reference](#-api-reference)
+    - [Base URL](#base-url)
+    - [Endpoints](#endpoints)
+      - [`POST /threads`](#post-threads)
+      - [`GET /threads/{thread_id}`](#get-threadsthread_id)
+      - [`GET /threads/{thread_id}/state`](#get-threadsthread_idstate)
+      - [`POST /runs/invoke`](#post-runsinvoke)
+      - [`POST /runs/resume`](#post-runsresume)
+      - [`GET /threads/{thread_id}/history`](#get-threadsthread_idhistory)
+      - [`GET /graph/info`](#get-graphinfo)
+      - [`GET /docs`](#get-docs)
+      - [`GET /health`](#get-health)
+  - [🔧 Troubleshooting](#-troubleshooting)
+    - [Common Issues](#common-issues)
+      - [Port Already in Use](#port-already-in-use)
+      - [AWS Credentials Error](#aws-credentials-error)
+      - [Tavily API Error](#tavily-api-error)
+      - [Tool Detection Not Working](#tool-detection-not-working)
+      - [Nginx 502 Bad Gateway](#nginx-502-bad-gateway)
+      - [Frontend Can't Reach API (with nginx subpath)](#frontend-cant-reach-api-with-nginx-subpath)
+      - [SSL Certificate "Not Secure" Warning in Browser](#ssl-certificate-not-secure-warning-in-browser)
+    - [Debug Mode](#debug-mode)
+  - [🎨 Customization](#-customization)
+    - [Add Custom Tools](#add-custom-tools)
+    - [Modify UI Styling](#modify-ui-styling)
+    - [Change Model](#change-model)
+    - [Add Authentication](#add-authentication)
+    - [Environment Variables](#environment-variables)
+  - [📂 Project Structure](#-project-structure)
+  - [🎓 Key Concepts](#-key-concepts)
+    - [LangGraph Nodes](#langgraph-nodes)
+    - [Edges](#edges)
+    - [Checkpointer](#checkpointer)
+    - [Tool Detection (NLP)](#tool-detection-nlp)
+  - [🚀 Next Steps](#-next-steps)
+  - [📞 Support](#-support)
+  - [🎉 Features Summary](#-features-summary)
 
 ---
 
@@ -28,7 +124,7 @@ cd c:\Users\user\Documents\langgraphplayground
 setup.bat
 ```
 
-Open: http://localhost:2024
+Open: <http://localhost:2024>
 
 ### Docker
 
@@ -36,7 +132,7 @@ Open: http://localhost:2024
 docker-compose up -d
 ```
 
-Open: http://localhost:2024
+Open: <http://localhost:2024>
 
 ### Manual
 
@@ -110,14 +206,17 @@ AWS Bedrock Nova Lite doesn't support native tool calling (structured outputs). 
 ### Key Components
 
 **Backend (`src/agent/`):**
+
 - `webapp.py` - FastAPI application with 10+ endpoints
 - `graph.py` - LangGraph agent with NLP tool detection
 - `tools.py` - Tool definitions (search, calculator, travel budget)
 
 **Frontend (`src/ui/`):**
+
 - `index.html` - Single-page vanilla JS application
 
 **Configuration:**
+
 - `langgraph.json` - LangGraph configuration
 - `docker-compose.yml` - Container orchestration
 - `.env` - Environment variables (AWS, Tavily credentials)
@@ -125,6 +224,7 @@ AWS Bedrock Nova Lite doesn't support native tool calling (structured outputs). 
 ### Single-Port Design
 
 **Everything runs on port 2024:**
+
 - ✅ Web UI at `/`
 - ✅ API endpoints at `/threads`, `/runs`, etc.
 - ✅ API documentation at `/docs`
@@ -181,21 +281,25 @@ MODEL_MAX_TOKENS=4096
 ### Step 3: Run
 
 **Option A: Direct (Development)**
+
 ```bash
 uvicorn src.agent.webapp:app --host 0.0.0.0 --port 2024 --reload
 ```
 
 **Option B: LangGraph CLI**
+
 ```bash
 langgraph dev --port 2024
 ```
 
 **Option C: Docker**
+
 ```bash
 docker-compose up -d
 ```
 
 **Option D: Docker with Fresh Build**
+
 ```bash
 chmod +x dockerSetup.sh
 ./dockerSetup.sh
@@ -203,7 +307,7 @@ chmod +x dockerSetup.sh
 
 ### Step 4: Verify
 
-Open http://localhost:2024 in your browser.
+Open <http://localhost:2024> in your browser.
 
 You should see the LangGraph Playground interface!
 
@@ -227,23 +331,27 @@ The playground includes an **optional React + TypeScript frontend** as an altern
 | **Production ready** | ✅ Works out of the box | ✅ After `npm run build` |
 
 **Recommendation:**
+
 - **Stick with vanilla JS** if you want simplicity and minimal dependencies
 - **Use React** if you plan to extend the UI or prefer modern tooling
 
 ### React Setup (Quick Start)
 
 #### Windows
+
 ```bash
 setup-react.bat
 ```
 
 #### Linux/Mac
+
 ```bash
 chmod +x setup-react.sh
 ./setup-react.sh
 ```
 
 #### Manual Setup
+
 ```bash
 cd frontend
 npm install
@@ -252,19 +360,22 @@ npm install
 ### Development Workflow
 
 **Terminal 1: Backend (FastAPI)**
+
 ```bash
 uvicorn src.agent.webapp:app --port 2024 --reload
 ```
 
 **Terminal 2: Frontend (React)**
+
 ```bash
 cd frontend
 npm run dev
 ```
 
-Access at: http://localhost:3000
+Access at: <http://localhost:3000>
 
 **How it works:**
+
 - React runs on port 3000
 - Vite proxies API calls to port 2024
 - Hot Module Replacement for instant updates
@@ -282,6 +393,7 @@ uvicorn src.agent.webapp:app --host 0.0.0.0 --port 2024
 ```
 
 **Production flow:**
+
 ```
 Browser → Port 2024
    ↓
@@ -293,6 +405,7 @@ FastAPI serves:
 ### Base Path Handling (BULLETPROOF! 🎯)
 
 **The Problem We Solved:**
+
 ```
 Browser requests: /langgraphplayground/assets/index.js
 FastAPI returns: text/html (404 page)
@@ -394,16 +507,19 @@ Browser ← application/javascript ✅ WORKS!
 **Common Mistakes (What NOT to Do):**
 
 ❌ **Wrong Vite Config:**
+
 ```typescript
 base: '/'  // Assets will be /assets/index.js (missing prefix)
 ```
 
 ❌ **Wrong FastAPI Mount:**
+
 ```python
 app.mount("/assets", ...)  // Assets at /assets (missing prefix)
 ```
 
 ❌ **Wrong Nginx Config:**
+
 ```nginx
 location /langgraphplayground/ {
     rewrite ^/langgraphplayground/(.*) /$1 break;  // Strips prefix!
@@ -429,6 +545,7 @@ If you see "Expected JavaScript but got text/html":
 - ✅ **Works locally and in production** - Same configuration
 
 **Why This Works:**
+
 - ✅ **No Vite base path complexity** (always builds with `/`)
 - ✅ **No nginx rewrite confusion** (just proxy)
 - ✅ **FastAPI handles everything** (single source of truth)
@@ -454,6 +571,7 @@ frontend/
 ### TypeScript Benefits
 
 **Type-safe API calls:**
+
 ```typescript
 // ✅ IntelliSense knows the response shape
 const response = await api.invokeAgent({
@@ -469,6 +587,7 @@ if (response.status === 'interrupted') {
 ```
 
 **Compile-time error catching:**
+
 ```typescript
 // ❌ TypeScript error: Property 'invalid' does not exist
 api.createThread({ invalid: "field" });
@@ -480,16 +599,19 @@ api.createThread({ thread_id: "custom-id" });
 ### Switching Between UIs
 
 **To use vanilla JS (default):**
+
 1. Don't build React (or delete `frontend/dist/`)
 2. Start FastAPI
-3. Access http://localhost:2024
+3. Access <http://localhost:2024>
 
 **To use React:**
+
 1. Build React: `cd frontend && npm run build`
 2. Start FastAPI
-3. Access http://localhost:2024
+3. Access <http://localhost:2024>
 
 **FastAPI automatically chooses:**
+
 ```python
 # Check if React build exists
 if os.path.exists("frontend/dist/index.html"):
@@ -514,6 +636,7 @@ The vanilla `index.html` serves as a **safety net** and **development fallback**
 | **Backend-only development** | ❌ No | ✅ **Yes!** |
 
 **Benefits:**
+
 - ✅ **Zero dependencies** - No Node.js required
 - ✅ **Always works** - Single HTML file (no build step)
 - ✅ **Quick testing** - Just run FastAPI
@@ -521,6 +644,7 @@ The vanilla `index.html` serves as a **safety net** and **development fallback**
 - ✅ **Development fallback** - Works without npm
 
 **Example Usage:**
+
 ```bash
 # Clone repo
 git clone https://github.com/enoch-sit/langgraphplayground.git
@@ -536,6 +660,7 @@ uvicorn src.agent.webapp:app --reload
 ```
 
 **In Production (Docker):**
+
 1. ✅ Docker builds React during image build (`npm run build`)
 2. ✅ React build exists → Uses React
 3. ❌ Vanilla `index.html` exists but is **ignored** (backup only)
@@ -545,21 +670,25 @@ uvicorn src.agent.webapp:app --reload
 ### React Development Tips
 
 **Hot Module Replacement (HMR):**
+
 - Edit `App.tsx` → see changes instantly
 - No page refresh needed
 - State is preserved
 
 **TypeScript IntelliSense:**
+
 - Hover over functions to see types
 - Auto-complete API methods
 - Refactor with confidence
 
 **Component Development:**
+
 - Extract reusable components
 - Props are type-checked
 - Easy to test
 
 **Building for Production:**
+
 ```bash
 cd frontend
 npm run build
@@ -575,6 +704,7 @@ npm run build
 ### Troubleshooting React
 
 #### Port 3000 already in use
+
 ```bash
 # Edit frontend/vite.config.ts
 server: {
@@ -583,6 +713,7 @@ server: {
 ```
 
 #### npm install fails
+
 ```bash
 # Clear cache and retry
 npm cache clean --force
@@ -592,6 +723,7 @@ npm install
 ```
 
 #### React build not showing
+
 ```bash
 # Verify build exists
 ls frontend/dist/
@@ -605,6 +737,7 @@ uvicorn src.agent.webapp:app --port 2024 --reload
 ```
 
 #### TypeScript errors
+
 ```bash
 # Install dependencies
 cd frontend
@@ -621,11 +754,12 @@ npm run build
 ### Local Development (Already Working!)
 
 You've confirmed Docker works locally:
+
 ```bash
 docker-compose up -d
 ```
 
-Access at: http://localhost:2024 ✅
+Access at: <http://localhost:2024> ✅
 
 ---
 
@@ -634,6 +768,7 @@ Access at: http://localhost:2024 ✅
 #### Prerequisites
 
 **Server Requirements:**
+
 - Ubuntu/Debian Linux server
 - Docker & Docker Compose installed
 - Nginx installed (for reverse proxy)
@@ -641,6 +776,7 @@ Access at: http://localhost:2024 ✅
 - Ports 80, 443 open (firewall configured)
 
 **Credentials Needed:**
+
 - AWS Access Key & Secret (Bedrock access)
 - Tavily API key
 - Domain name (for nginx configuration)
@@ -648,6 +784,7 @@ Access at: http://localhost:2024 ✅
 #### Step 1: Server Setup
 
 **1.1 Install Docker (if not installed):**
+
 ```bash
 # Update package list
 sudo apt update
@@ -661,11 +798,13 @@ newgrp docker
 ```
 
 **1.2 Install Nginx (if not installed):**
+
 ```bash
 sudo apt install -y nginx
 ```
 
 **1.3 Clone Repository:**
+
 ```bash
 # SSH into server
 ssh user@your-server-ip
@@ -678,6 +817,7 @@ cd langgraphplayground
 #### Step 2: Configure Environment
 
 **2.1 Create Production .env:**
+
 ```bash
 # Copy template
 cp .env.example .env
@@ -687,6 +827,7 @@ nano .env
 ```
 
 **2.2 Production .env Contents:**
+
 ```env
 # AWS Bedrock Configuration
 AWS_ACCESS_KEY_ID=your_production_access_key
@@ -707,6 +848,7 @@ LOG_LEVEL=INFO
 ```
 
 **2.3 Secure .env File:**
+
 ```bash
 chmod 600 .env
 ```
@@ -714,6 +856,7 @@ chmod 600 .env
 #### Step 3: Deploy with Docker
 
 **3.1 Build and Start Containers:**
+
 ```bash
 # Stop any existing containers
 docker-compose down
@@ -726,6 +869,7 @@ docker-compose up -d
 ```
 
 **3.2 Verify Container is Running:**
+
 ```bash
 # Check container status
 docker-compose ps
@@ -743,6 +887,7 @@ curl http://localhost:2024/health
 ```
 
 **3.3 Production docker-compose.yml Features:**
+
 ```yaml
 version: '3.8'
 
@@ -798,6 +943,7 @@ This setup uses **two configuration files** to make nginx handle both regular HT
 ##### Why Two Files?
 
 **1. Main Config (`/etc/nginx/nginx.conf`)** - Defines global variables
+
 ```nginx
 http {
     map $http_upgrade $connection_upgrade {
@@ -808,23 +954,27 @@ http {
 ```
 
 **Purpose:** Creates a smart variable that:
+
 - Sets `Connection: upgrade` when client requests WebSocket/streaming
 - Sets `Connection: close` for regular HTTP requests
 - Makes nginx handle **both** connection types correctly
 
 **Why it's needed:**
+
 - The `map` directive can **only** be in the `http` block (nginx requirement)
 - Once defined here, all your sites can use `$connection_upgrade`
 - Without it: you'd hardcode `Connection: "upgrade"` for ALL requests (incorrect!)
 - With it: nginx is smart about when to upgrade connections
 
 **Why in nginx.conf specifically?**
+
 - Location blocks are independent - variables defined here are available globally
 - Flowise on port 3000 and LangGraph on port 2024 are completely isolated
 - Each location block uses its own proxy headers
 - No interference between services
 
 **2. Site Config (`/etc/nginx/sites-available/your-site`)** - Uses the variable
+
 ```nginx
 location /langgraphplayground/ {
     proxy_set_header Connection $connection_upgrade;  # ← Uses the variable
@@ -841,6 +991,7 @@ location /langgraphplayground/ {
 | WebSocket/SSE | `"websocket"` | `"upgrade"` | Upgraded connection ✅ |
 
 **Request Flow:**
+
 ```
 Browser → Regular API call
   ↓
@@ -948,6 +1099,7 @@ server {
 **How WebSocket Upgrades Work:**
 
 1. **Browser initiates HTTP(S) request:**
+
    ```
    GET /api/stream HTTP/1.1
    Upgrade: websocket
@@ -955,6 +1107,7 @@ server {
    ```
 
 2. **Server responds with 101 Switching Protocols:**
+
    ```
    HTTP/1.1 101 Switching Protocols
    Upgrade: websocket
@@ -974,12 +1127,14 @@ Browser → WSS (encrypted) → Nginx:443 → WS (localhost) → FastAPI:2024
 ```
 
 **Why WSS is Secure:**
+
 - **Same encryption as HTTPS**: Uses SSL/TLS 1.2/1.3 with strong ciphers
 - **Certificate validation**: Browser verifies server certificate
 - **Encrypted data**: All messages encrypted end-to-end from browser to nginx
 - **Localhost unencrypted**: nginx → FastAPI connection is unencrypted, but it's on localhost (same machine), which is safe
 
 **Your SSL/TLS Configuration:**
+
 ```nginx
 ssl_protocols TLSv1.2 TLSv1.3;
 ssl_ciphers HIGH:!aNULL:!MD5;
@@ -1000,6 +1155,7 @@ This project uses **WebSocket (WS/WSS)** instead of **Server-Sent Events (SSE)**
 | **Use Case** | Chat, gaming, collaboration | Notifications, logs, tickers |
 
 **Why LangGraph Needs WebSocket:**
+
 1. **Human-in-the-Loop (HITL)**: Users must approve/modify tool calls → requires sending data back during streaming
 2. **Interactive conversation**: Bidirectional chat flow where users can interrupt or provide input
 3. **State updates**: Client can send commands to control graph state
@@ -1010,6 +1166,7 @@ SSE would only work for simple "display streaming responses" where the client ne
 #### Key Configuration Details
 
 **Location Order Matters:**
+
 ```nginx
 location /langgraphplayground/ { }  # ← Specific path (matches FIRST)
 location / { }                       # ← Catch-all (matches LAST)
@@ -1018,11 +1175,13 @@ location / { }                       # ← Catch-all (matches LAST)
 Nginx checks specific paths before catch-all, ensuring proper routing.
 
 **Port Isolation:**
+
 - LangGraph: `localhost:2024` (isolated)
 - Flowise: `localhost:3000` (isolated)
 - No conflicts possible!
 
 **Headers Explained:**
+
 - `Upgrade: $http_upgrade` - Passes client's upgrade request
 - `Connection: $connection_upgrade` - Smart variable (upgrade or close)
 - `X-Forwarded-*` - Preserves original client info through proxy
@@ -1145,6 +1304,7 @@ curl https://your-domain/langgraphplayground/health
 **What ROOT_PATH Does Internally:**
 
 FastAPI uses `root_path` parameter (set via `ROOT_PATH` env var) to:
+
 1. **Mount application** at the specified path prefix
 2. **Generate OpenAPI docs** with correct server URL
 3. **Resolve static files** with path prefix
@@ -1152,6 +1312,7 @@ FastAPI uses `root_path` parameter (set via `ROOT_PATH` env var) to:
 5. **Build WebSocket URLs** with prefix included
 
 **Read More:**
+
 - [FastAPI Behind a Proxy](https://fastapi.tiangolo.com/advanced/behind-a-proxy/)
 - [FastAPI root_path Documentation](https://fastapi.tiangolo.com/reference/fastapi/#fastapi.FastAPI--root_path)
 
@@ -1160,6 +1321,7 @@ FastAPI uses `root_path` parameter (set via `ROOT_PATH` env var) to:
 ### Complete Production Deployment Summary
 
 **What's Included:**
+
 - ✅ Health checks (auto-restart on failure)
 - ✅ Resource limits (2 CPU, 2GB RAM)
 - ✅ Log rotation (10MB max, 3 files)
@@ -1196,13 +1358,12 @@ sudo certbot --nginx -d your-domain.com
 ```
 
 **Access:**
+
 - Production: `https://your-domain.com/langgraphplayground/`
 - Health: `https://your-domain.com/langgraphplayground/health`
 - API Docs: `https://your-domain.com/langgraphplayground/docs`
 
 ---
-
-
 
 ## 💡 How It Works
 
@@ -1338,6 +1499,7 @@ POST /runs/resume
 ### State Management
 
 **MemorySaver Checkpointer:**
+
 - Stores conversation state in memory
 - Each thread has isolated state
 - Supports time-travel (rewind to checkpoints)
@@ -1351,6 +1513,7 @@ class AgentState(TypedDict):
 ```
 
 Messages include:
+
 - `HumanMessage` - User inputs
 - `AIMessage` - LLM responses (with tool_calls)
 - `ToolMessage` - Tool execution results
@@ -1371,6 +1534,7 @@ Messages include:
 Create a new conversation thread.
 
 **Request:**
+
 ```json
 {
     "thread_id": "optional-custom-id"
@@ -1378,6 +1542,7 @@ Create a new conversation thread.
 ```
 
 **Response:**
+
 ```json
 {
     "thread_id": "abc-123",
@@ -1390,6 +1555,7 @@ Create a new conversation thread.
 Get thread details.
 
 **Response:**
+
 ```json
 {
     "thread_id": "abc-123",
@@ -1402,6 +1568,7 @@ Get thread details.
 Get current conversation state.
 
 **Response:**
+
 ```json
 {
     "messages": [...],
@@ -1415,6 +1582,7 @@ Get current conversation state.
 Run the agent with a message.
 
 **Request:**
+
 ```json
 {
     "thread_id": "abc-123",
@@ -1424,6 +1592,7 @@ Run the agent with a message.
 ```
 
 **Response (Interrupted):**
+
 ```json
 {
     "status": "interrupted",
@@ -1439,6 +1608,7 @@ Run the agent with a message.
 ```
 
 **Response (Completed):**
+
 ```json
 {
     "status": "completed",
@@ -1454,6 +1624,7 @@ Run the agent with a message.
 Resume execution after HITL approval.
 
 **Request:**
+
 ```json
 {
     "thread_id": "abc-123",
@@ -1465,6 +1636,7 @@ Resume execution after HITL approval.
 ```
 
 **Response:**
+
 ```json
 {
     "status": "completed",
@@ -1477,6 +1649,7 @@ Resume execution after HITL approval.
 Get checkpoint history.
 
 **Response:**
+
 ```json
 {
     "checkpoints": [
@@ -1494,6 +1667,7 @@ Get checkpoint history.
 Get graph structure information.
 
 **Response:**
+
 ```json
 {
     "nodes": ["__start__", "agent", "tools", "__end__"],
@@ -1512,6 +1686,7 @@ Interactive API documentation (Swagger UI).
 Health check endpoint.
 
 **Response:**
+
 ```json
 {
     "status": "healthy",
@@ -1542,6 +1717,7 @@ Error: Unable to locate credentials
 ```
 
 **Fix:** Verify `.env` file has correct AWS credentials:
+
 ```env
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=...
@@ -1554,7 +1730,8 @@ AWS_REGION=us-east-1
 Error: 401 Unauthorized
 ```
 
-**Fix:** Get API key from https://tavily.com and add to `.env`:
+**Fix:** Get API key from <https://tavily.com> and add to `.env`:
+
 ```env
 TAVILY_API_KEY=tvly-...
 ```
@@ -1564,6 +1741,7 @@ TAVILY_API_KEY=tvly-...
 **Symptoms:** LLM doesn't trigger tools, or responses are text instead of JSON.
 
 **Fixes:**
+
 1. Lower temperature (0.3 or below) in `.env`
 2. Check system prompt includes tool instructions
 3. Verify model is `amazon.nova-lite-v1:0`
@@ -1573,6 +1751,7 @@ TAVILY_API_KEY=tvly-...
 **Cause:** FastAPI not running on port 2024.
 
 **Fix:**
+
 ```bash
 # Check if running
 curl http://localhost:2024/health
@@ -1589,6 +1768,7 @@ uvicorn src.agent.webapp:app --host 0.0.0.0 --port 2024
 **Cause:** JavaScript `API_BASE` not detecting subpath.
 
 **Fix:** Already patched in `src/ui/index.html` with `getApiBase()` function. If issue persists, check browser console:
+
 ```javascript
 console.log('API_BASE set to:', API_BASE);
 ```
@@ -1602,6 +1782,7 @@ Should show: `https://your-domain.com/langgraphplayground` (not just origin).
 **Cause:** Hostname mismatch between URL and SSL certificate.
 
 **Common Scenario:**
+
 - Your wildcard certificate: `*.eduhk.hk` (covers `project-1-04.eduhk.hk`)
 - Your URL: `https://project-1-04/langgraphplayground/` ❌ (no domain suffix)
 - Browser error: Certificate doesn't match hostname
@@ -1619,30 +1800,33 @@ https://project-1-04.eduhk.hk/langgraphplayground/
 **Verify Your Setup:**
 
 1. **Check certificate coverage:**
+
    ```bash
    # On server
    openssl x509 -in /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt -noout -text | grep -E "Subject:|DNS:"
    ```
 
 2. **Verify nginx server_name:**
+
    ```bash
    grep 'server_name' /etc/nginx/sites-available/project-1-04
    ```
-   
+
    Should show:
+
    ```nginx
    server_name project-1-04.eduhk.hk;
    ```
-   
+
    **If it shows short hostname like `project-1-04`, you need to fix it:**
-   
+
    ```bash
    # Edit nginx config
    sudo nano /etc/nginx/sites-available/project-1-04
    ```
-   
+
    **Update BOTH server blocks** (HTTP and HTTPS):
-   
+
    ```nginx
    # HTTP redirect block
    server {
@@ -1661,9 +1845,9 @@ https://project-1-04.eduhk.hk/langgraphplayground/
        # ... rest of config ...
    }
    ```
-   
+
    **Then test and reload:**
-   
+
    ```bash
    # Test configuration
    sudo nginx -t
@@ -1673,6 +1857,7 @@ https://project-1-04.eduhk.hk/langgraphplayground/
    ```
 
 3. **Test DNS resolution:**
+
    ```bash
    nslookup project-1-04.eduhk.hk
    # Should resolve to your server IP
@@ -1689,6 +1874,7 @@ https://project-1-04.eduhk.hk/langgraphplayground/
 **Update Your Bookmarks/Links:**
 
 If you've been using the short hostname, update to full domain:
+
 - Bookmarks: `https://project-1-04.eduhk.hk/langgraphplayground/`
 - Documentation: Use full domain in examples
 - API calls: Use full domain in base URLs
@@ -1696,6 +1882,7 @@ If you've been using the short hostname, update to full domain:
 **Why This Happens:**
 
 Browsers perform strict certificate validation:
+
 1. Browser extracts hostname from URL (`project-1-04`)
 2. Checks if hostname matches certificate's Subject Alternative Names (SANs)
 3. Certificate has `*.eduhk.hk`, but URL has no `.eduhk.hk` suffix
@@ -1714,6 +1901,7 @@ logging.basicConfig(level=logging.DEBUG)
 ```
 
 View logs:
+
 ```bash
 # Docker
 docker-compose logs -f
@@ -1890,7 +2078,7 @@ langgraphplayground/
 
 ## 🚀 Next Steps
 
-1. **Test Locally** - Run `setup.bat` and explore at http://localhost:2024
+1. **Test Locally** - Run `setup.bat` and explore at <http://localhost:2024>
 2. **Deploy to Server** - Use Docker and nginx configuration
 3. **Add Custom Tools** - Extend functionality for your use case
 4. **Integrate with Apps** - Use API endpoints in your applications
@@ -1901,8 +2089,8 @@ langgraphplayground/
 ## 📞 Support
 
 - **Issues:** Check [Troubleshooting](#-troubleshooting) section
-- **API Docs:** http://localhost:2024/docs
-- **LangGraph Docs:** https://langchain-ai.github.io/langgraph/
+- **API Docs:** <http://localhost:2024/docs>
+- **LangGraph Docs:** <https://langchain-ai.github.io/langgraph/>
 
 ---
 

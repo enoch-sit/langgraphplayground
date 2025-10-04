@@ -400,7 +400,22 @@ async def stream_agent(input: RunInput):
             state = agent.get_state(config)
             if state.next:
                 logger.info(f"⏸️ Stream interrupted at node(s): {state.next}")
-                yield f"data: {json.dumps({'event': 'interrupt', 'next': state.next})}\n\n"
+                
+                # If interrupted at "tools" node, include tool call details for approval UI
+                interrupt_data = {'event': 'interrupt', 'next': state.next}
+                
+                if "tools" in state.next and state.values.get("messages"):
+                    last_message = state.values["messages"][-1]
+                    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+                        tool_call = last_message.tool_calls[0]
+                        interrupt_data['pending_tool_call'] = {
+                            'name': tool_call.get('name'),
+                            'args': tool_call.get('args'),
+                            'id': tool_call.get('id')
+                        }
+                        logger.info(f"🛠️ Tool approval required: {tool_call.get('name')} with args {tool_call.get('args')}")
+                
+                yield f"data: {json.dumps(interrupt_data)}\n\n"
             else:
                 # If we got here, the graph completed without interruption
                 logger.info(f"✅ Stream completed")

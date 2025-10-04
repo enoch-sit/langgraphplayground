@@ -171,6 +171,11 @@ export interface StreamNodeEvent {
 export interface StreamInterruptEvent {
   event: 'interrupt';
   next: string[];
+  pending_tool_call?: {
+    name: string;
+    args: Record<string, any>;
+    id: string;
+  };
 }
 
 export interface StreamCompleteEvent {
