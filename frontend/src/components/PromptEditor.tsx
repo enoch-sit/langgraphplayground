@@ -278,6 +278,11 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
         <div className="section-header">
           <h4>✈️ Trip Planner Node Prompts</h4>
           <p className="section-subtitle">Each node has its own editable prompt!</p>
+          <div className="prompt-info-notice">
+            <strong>ℹ️ How Prompts Work:</strong> Your edits are saved to the database for this thread. 
+            If you haven't customized a prompt yet, the default trip planning prompt is used. 
+            Click "Reset" to restore the default prompt at any time.
+          </div>
         </div>
 
         {prompts ? (
@@ -305,6 +310,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({ threadId, onPromptUp
                         onClick={() => handleResetPrompt(promptInfo.name)}
                         disabled={loading}
                         className="btn-secondary"
+                        title="Reset to the default trip planning prompt defined in the code"
                       >
                         🔄 Reset
                       </button>

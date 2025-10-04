@@ -9,9 +9,15 @@
 - [🚀 LangGraph Playground - Complete Guide](#-langgraph-playground---complete-guide)
   - [📋 Table of Contents](#-table-of-contents)
   - [⚡ Quick Start](#-quick-start)
-    - [Windows (Simplest)](#windows-simplest)
-    - [Docker](#docker)
-    - [Manual](#manual)
+    - [🚀 Production Setup (Recommended)](#-production-setup-recommended)
+      - [Step 0: Clone Repository](#step-0-clone-repository)
+      - [Step 1: Configure Nginx](#step-1-configure-nginx)
+      - [Step 2: Configure Environment Variables](#step-2-configure-environment-variables)
+      - [Step 3: Deploy with Docker](#step-3-deploy-with-docker)
+      - [Step 4: Verify \& Access](#step-4-verify--access)
+    - [🛠️ Local Development Setup](#️-local-development-setup)
+      - [Docker (Simplest)](#docker-simplest)
+      - [Manual](#manual)
   - [🎯 What This Is](#-what-this-is)
     - [Why This Exists](#why-this-exists)
   - [🏗️ Architecture](#️-architecture)
@@ -24,10 +30,9 @@
     - [Step 2: Configure Environment](#step-2-configure-environment)
     - [Step 3: Run](#step-3-run)
     - [Step 4: Verify](#step-4-verify)
-  - [⚛️ React Frontend (Optional)](#️-react-frontend-optional)
+  - [⚛️ React Frontend](#️-react-frontend)
     - [Why Use the React Version?](#why-use-the-react-version)
     - [React Setup (Quick Start)](#react-setup-quick-start)
-      - [Windows](#windows)
       - [Linux/Mac](#linuxmac)
       - [Manual Setup](#manual-setup)
     - [Development Workflow](#development-workflow)
@@ -40,7 +45,6 @@
     - [React Project Structure](#react-project-structure)
     - [TypeScript Benefits](#typescript-benefits)
     - [Switching Between UIs](#switching-between-uis)
-    - [Vanilla `index.html` - Fallback UI](#vanilla-indexhtml---fallback-ui)
     - [React Development Tips](#react-development-tips)
     - [Troubleshooting React](#troubleshooting-react)
       - [Port 3000 already in use](#port-3000-already-in-use)
@@ -53,12 +57,13 @@
       - [Prerequisites](#prerequisites-1)
       - [Step 1: Server Setup](#step-1-server-setup)
       - [Step 2: Configure Environment](#step-2-configure-environment-1)
-      - [Step 3: Deploy with Docker](#step-3-deploy-with-docker)
+      - [Step 3: Deploy with Docker](#step-3-deploy-with-docker-1)
       - [Step 4: Configure Nginx](#step-4-configure-nginx)
         - [Why Two Files?](#why-two-files)
         - [How It Works](#how-it-works)
       - [Your Server Setup](#your-server-setup)
       - [WebSocket Security: WS vs WSS](#websocket-security-ws-vs-wss)
+      - [Real-World Configuration Example](#real-world-configuration-example)
       - [Key Configuration Details](#key-configuration-details)
       - [Apply Configuration](#apply-configuration)
       - [Access](#access)
@@ -112,36 +117,232 @@
   - [🚀 Next Steps](#-next-steps)
   - [📞 Support](#-support)
   - [🎉 Features Summary](#-features-summary)
-
 ---
 
 ## ⚡ Quick Start
 
-### Windows (Simplest)
+### 🚀 Production Setup (Recommended)
+
+**Complete setup in 4 steps - get LangGraph Playground running on your server in minutes!**
+
+#### Step 0: Clone Repository
 
 ```bash
-cd c:\Users\user\Documents\langgraphplayground
-setup.bat
+# Clone the repository to your server
+git clone https://github.com/enoch-sit/langgraphplayground.git
+cd langgraphplayground
 ```
 
-Open: <http://localhost:2024>
+#### Step 1: Configure Nginx
 
-### Docker
+**1.1 Add WebSocket support to main nginx config:**
 
 ```bash
+sudo nano /etc/nginx/nginx.conf
+```
+
+Add this inside the `http` block:
+
+```nginx
+http {
+    # ... existing settings ...
+    
+    # WebSocket support for LangGraph streaming
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+    
+    # ... rest of config ...
+}
+```
+
+**1.2 Create site configuration:**
+
+```bash
+sudo nano /etc/nginx/sites-available/langgraph
+```
+
+Add this configuration (adjust domain name and SSL paths):
+
+```nginx
+server {
+    listen 80;
+    server_name project-1-xx.eduhk.hk;  # Replace xx with your project number
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name project-1-xx.eduhk.hk;  # Replace xx with your project number
+    
+    # SSL certificates (wildcard cert for *.eduhk.hk)
+    ssl_certificate /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt;
+    ssl_certificate_key /etc/nginx/ssl/dept-wildcard.eduhk/dept-wildcard.eduhk.hk.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    # Allow large uploads
+    client_max_body_size 100M;
+    
+    # LangGraph Playground
+    location /langgraphplayground/ {
+        proxy_pass http://localhost:2024;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+}
+```
+
+**1.3 Enable the site and reload nginx:**
+
+```bash
+sudo ln -s /etc/nginx/sites-available/langgraph /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+#### Step 2: Configure Environment Variables
+
+**2.1 Get your API keys:**
+
+- **AWS Bedrock**: Get access key from AWS Console → IAM → Users → Security credentials
+- **Tavily API**: Sign up at [https://tavily.com](https://tavily.com) and get API key from dashboard
+
+**2.2 Create .env file:**
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+**2.3 Fill in your credentials:**
+
+```env
+# AWS Bedrock Configuration
+AWS_ACCESS_KEY_ID=AKIA...your_key_here
+AWS_SECRET_ACCESS_KEY=...your_secret_here
+AWS_REGION=us-east-1
+
+# Tavily API Key (for search tool)
+TAVILY_API_KEY=tvly-...your_key_here
+
+# Model Configuration
+AWS_BEDROCK_MODEL=amazon.nova-lite-v1:0
+MODEL_TEMPERATURE=0.3
+MODEL_MAX_TOKENS=4096
+
+# Production Settings (IMPORTANT for nginx subpath!)
+ROOT_PATH=/langgraphplayground
+```
+
+**Save and exit** (Ctrl+X, Y, Enter in nano)
+
+#### Step 3: Deploy with Docker
+
+**3.1 Make setup script executable:**
+
+```bash
+chmod +x dockerSetup.sh
+```
+
+**3.2 Run the automated setup:**
+
+```bash
+./dockerSetup.sh
+```
+
+**What this script does:**
+- ✅ Checks Docker is installed
+- ✅ Scans for port conflicts
+- ✅ Cleans up old containers/images
+- ✅ Builds fresh Docker image (no cache)
+- ✅ Starts containers automatically
+- ✅ Shows status and logs
+
+**Alternative - Fast rebuild (during development):**
+
+```bash
+chmod +x dockerSetupFast.sh
+./dockerSetupFast.sh
+```
+
+This keeps cache for faster rebuilds.
+
+#### Step 4: Verify & Access
+
+**4.1 Check container is running:**
+
+```bash
+docker ps | grep langgraph
+```
+
+**4.2 Test health endpoint:**
+
+```bash
+curl http://localhost:2024/health
+# Should return: {"status":"healthy","service":"langgraph-playground"}
+```
+
+**4.3 Test through nginx:**
+
+```bash
+curl https://project-1-xx.eduhk.hk/langgraphplayground/health
+# Replace xx with your project number
+```
+
+**4.4 Access the application:**
+
+Open in browser: `https://project-1-xx.eduhk.hk/langgraphplayground/`
+
+🎉 **Done!** You now have LangGraph Playground running in production!
+
+---
+
+### 🛠️ Local Development Setup
+
+**Quick setup for local testing (no nginx required):**
+
+#### Docker (Simplest)
+
+```bash
+git clone https://github.com/enoch-sit/langgraphplayground.git
+cd langgraphplayground
+cp .env.example .env
+# Edit .env with your API credentials
+# Note: Do NOT set ROOT_PATH for local development
 docker-compose up -d
 ```
 
-Open: <http://localhost:2024>
+**Access:** <http://localhost:2024/>
 
-### Manual
+**Note:** Local development runs at root path `/`, not `/langgraphplayground/`
+
+#### Manual
 
 ```bash
+git clone https://github.com/enoch-sit/langgraphplayground.git
+cd langgraphplayground
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your credentials
+# Edit .env with your API credentials
+# Note: Do NOT set ROOT_PATH for local development
 uvicorn src.agent.webapp:app --host 0.0.0.0 --port 2024 --reload
 ```
+
+**Access:** <http://localhost:2024/>
+
+**Note:** Local development runs at root path `/`, not `/langgraphplayground/`
 
 ---
 
@@ -245,7 +446,9 @@ AWS Bedrock Nova Lite doesn't support native tool calling (structured outputs). 
 ### Step 1: Clone & Install
 
 ```bash
-cd c:\Users\user\Documents\langgraphplayground
+# Clone the repository
+git clone https://github.com/enoch-sit/langgraphplayground.git
+cd langgraphplayground
 
 # Install dependencies
 pip install -r requirements.txt
@@ -307,13 +510,13 @@ chmod +x dockerSetup.sh
 
 ### Step 4: Verify
 
-Open <http://localhost:2024> in your browser.
+Open <http://yourproject/langgraphplayground> in your browser.
 
 You should see the LangGraph Playground interface!
 
 ---
 
-## ⚛️ React Frontend (Optional)
+## ⚛️ React Frontend 
 
 The playground includes an **optional React + TypeScript frontend** as an alternative to the vanilla JavaScript UI. Both versions provide the same functionality!
 
@@ -336,12 +539,6 @@ The playground includes an **optional React + TypeScript frontend** as an altern
 - **Use React** if you plan to extend the UI or prefer modern tooling
 
 ### React Setup (Quick Start)
-
-#### Windows
-
-```bash
-setup-react.bat
-```
 
 #### Linux/Mac
 
@@ -619,53 +816,6 @@ if os.path.exists("frontend/dist/index.html"):
 else:
     return FileResponse("src/ui/index.html")  # Vanilla JS
 ```
-
-### Vanilla `index.html` - Fallback UI
-
-**Why Keep `src/ui/index.html`?**
-
-The vanilla `index.html` serves as a **safety net** and **development fallback**:
-
-| Scenario | Uses React? | Uses Vanilla? |
-|----------|-------------|---------------|
-| **Docker deployment** | ✅ Yes | ❌ No |
-| **Local with `npm run build`** | ✅ Yes | ❌ No |
-| **Local without npm install** | ❌ No | ✅ **Yes!** |
-| **React build deleted/failed** | ❌ No | ✅ **Yes!** |
-| **Quick API testing** | ❌ No | ✅ **Yes!** |
-| **Backend-only development** | ❌ No | ✅ **Yes!** |
-
-**Benefits:**
-
-- ✅ **Zero dependencies** - No Node.js required
-- ✅ **Always works** - Single HTML file (no build step)
-- ✅ **Quick testing** - Just run FastAPI
-- ✅ **Backwards compatible** - App never breaks
-- ✅ **Development fallback** - Works without npm
-
-**Example Usage:**
-
-```bash
-# Clone repo
-git clone https://github.com/enoch-sit/langgraphplayground.git
-cd langgraphplayground
-
-# Skip npm install completely!
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run FastAPI - vanilla UI automatically served
-uvicorn src.agent.webapp:app --reload
-```
-
-**In Production (Docker):**
-
-1. ✅ Docker builds React during image build (`npm run build`)
-2. ✅ React build exists → Uses React
-3. ❌ Vanilla `index.html` exists but is **ignored** (backup only)
-
-**Recommendation:** Keep `src/ui/index.html` as a safety net! It costs nothing and ensures your app always has *some* UI.
 
 ### React Development Tips
 
@@ -1162,6 +1312,282 @@ This project uses **WebSocket (WS/WSS)** instead of **Server-Sent Events (SSE)**
 4. **Real-time collaboration**: Both agent and human actively participate
 
 SSE would only work for simple "display streaming responses" where the client never sends data back during the stream. For interactive agents with HITL, WebSocket is the correct choice.
+
+#### Real-World Configuration Example
+
+Here's a complete, production-ready nginx configuration from an actual deployment on `project-1-04.eduhk.hk`:
+
+**Main Nginx Config (`/etc/nginx/nginx.conf`):**
+
+```nginx
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+error_log /var/log/nginx/error.log;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 768;
+    # multi_accept on;
+}
+
+http {
+    # ✅ CRITICAL: WebSocket support (must be in http block)
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+    
+    ##
+    # Basic Settings
+    ##
+    sendfile on;
+    tcp_nopush on;
+    types_hash_max_size 2048;
+    # server_tokens off;
+
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    ##
+    # SSL Settings
+    ##
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    ##
+    # Logging Settings
+    ##
+    access_log /var/log/nginx/access.log;
+
+    ##
+    # Gzip Settings
+    ##
+    gzip on;
+
+    ##
+    # Virtual Host Configs
+    ##
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
+```
+
+**Site Config (`/etc/nginx/sites-available/project-1-04`):**
+
+```nginx
+# HTTP → HTTPS redirect
+server {
+    listen 80;
+    server_name project-1-04.eduhk.hk;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl;
+    server_name project-1-04.eduhk.hk;
+    
+    # SSL Certificate Configuration
+    ssl_certificate /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt;
+    ssl_certificate_key /etc/nginx/ssl/dept-wildcard.eduhk/dept-wildcard.eduhk.hk.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    ssl_trusted_certificate /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt;
+
+    # Allow large file uploads (for LangGraph uploads)
+    client_max_body_size 100M;
+
+    # LangGraph Playground
+    location /langgraphplayground/ {
+        # ✅ CRITICAL: Don't use rewrite! Let FastAPI handle the full path
+        proxy_pass http://localhost:2024;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+
+    # Other apps (e.g., Flowise - commented out in this example)
+    # location / {
+    #     proxy_pass http://localhost:3000;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    # }
+}
+```
+
+**Detailed Configuration Breakdown:**
+
+**1. Main Config (`nginx.conf`) - Key Elements:**
+
+| Setting | Purpose | Why It Matters |
+|---------|---------|----------------|
+| `worker_processes auto` | Auto-detect CPU cores | Optimal performance |
+| `worker_connections 768` | Max connections per worker | Handles 768 concurrent requests |
+| `map $http_upgrade $connection_upgrade` | WebSocket support | **CRITICAL** for streaming/HITL |
+| `sendfile on` | Efficient file serving | Faster static assets |
+| `tcp_nopush on` | Optimize packet sending | Better network performance |
+| `gzip on` | Compression | Smaller response sizes |
+
+**2. Site Config - HTTP to HTTPS Redirect:**
+
+```nginx
+server {
+    listen 80;
+    server_name project-1-04.eduhk.hk;
+    return 301 https://$host$request_uri;
+}
+```
+
+- **Purpose:** Force all HTTP traffic to HTTPS
+- **How it works:** Any request to `http://project-1-04.eduhk.hk/...` → redirects to `https://project-1-04.eduhk.hk/...`
+- **Security:** Ensures all communications are encrypted
+
+**3. SSL/TLS Configuration:**
+
+```nginx
+ssl_certificate /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt;
+ssl_certificate_key /etc/nginx/ssl/dept-wildcard.eduhk/dept-wildcard.eduhk.hk.key;
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers HIGH:!aNULL:!MD5;
+```
+
+| Setting | Value | Explanation |
+|---------|-------|-------------|
+| `ssl_certificate` | Wildcard cert for `*.eduhk.hk` | Covers all subdomains like `project-1-04.eduhk.hk` |
+| `ssl_protocols` | TLSv1.2, TLSv1.3 | Modern, secure protocols only |
+| `ssl_ciphers` | HIGH:!aNULL:!MD5 | Strong encryption, blocks weak ciphers |
+| `ssl_stapling on` | OCSP stapling | Faster SSL handshake, privacy improvement |
+
+**4. LangGraph Location Block - Line by Line:**
+
+```nginx
+location /langgraphplayground/ {
+    # NO rewrite directive! Path preserved: /langgraphplayground/health → /langgraphplayground/health
+    proxy_pass http://localhost:2024;
+```
+
+**Why no trailing slash on `proxy_pass`?**
+- ✅ `proxy_pass http://localhost:2024;` → Preserves full path `/langgraphplayground/health`
+- ❌ `proxy_pass http://localhost:2024/;` → Strips path to `/health` (breaks with ROOT_PATH)
+
+```nginx
+    proxy_http_version 1.1;
+```
+- Enables HTTP/1.1 (required for WebSocket upgrades)
+
+```nginx
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+```
+- **Critical for WebSocket/streaming:** Uses the `$connection_upgrade` variable from `nginx.conf`
+- Automatically switches between `close` (regular HTTP) and `upgrade` (WebSocket)
+
+```nginx
+    proxy_set_header Host $host;
+```
+- Preserves original hostname: `project-1-04.eduhk.hk`
+- FastAPI sees correct domain for URL generation
+
+```nginx
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+```
+- `X-Real-IP`: Original client IP (for logging, security)
+- `X-Forwarded-For`: Proxy chain (tracks all intermediaries)
+- `X-Forwarded-Proto`: Original protocol (https), FastAPI knows connection was secure
+
+```nginx
+    proxy_buffering off;
+    proxy_cache off;
+```
+- **Critical for streaming:** Disables buffering so responses stream immediately
+- Without this: Streaming would wait for full response before sending
+
+```nginx
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 75s;
+```
+- `read_timeout 300s`: Allows long-running agent operations (5 minutes)
+- `connect_timeout 75s`: How long to wait for FastAPI to respond initially
+
+**5. Client Settings:**
+
+```nginx
+client_max_body_size 100M;
+```
+- Allows file uploads up to 100MB
+- Default is 1MB (too small for document uploads)
+
+**Request Flow Example:**
+
+```
+User visits: https://project-1-04.eduhk.hk/langgraphplayground/health
+
+1. Browser → Nginx:443 (HTTPS)
+   Request: GET /langgraphplayground/health
+   
+2. Nginx matches location /langgraphplayground/
+   
+3. Nginx → FastAPI:2024 (HTTP, localhost)
+   Proxies: GET /langgraphplayground/health
+   Headers:
+     Host: project-1-04.eduhk.hk
+     X-Forwarded-Proto: https
+     X-Real-IP: 203.X.X.X
+   
+4. FastAPI receives:
+   - Path: /langgraphplayground/health
+   - ROOT_PATH env: /langgraphplayground
+   - Knows: "I'm at /langgraphplayground/"
+   
+5. FastAPI → Nginx → Browser
+   Response: {"status": "healthy"}
+```
+
+**Common Pitfalls Avoided:**
+
+❌ **Wrong:**
+```nginx
+location /langgraphplayground/ {
+    rewrite ^/langgraphplayground/(.*) /$1 break;  # Strips path!
+    proxy_pass http://localhost:2024/;
+}
+```
+- Result: FastAPI gets `/health` but ROOT_PATH is `/langgraphplayground` → Asset paths broken
+
+✅ **Correct (this config):**
+```nginx
+location /langgraphplayground/ {
+    proxy_pass http://localhost:2024;  # No rewrite, no trailing slash
+}
+```
+- Result: FastAPI gets `/langgraphplayground/health` → Works perfectly with ROOT_PATH
+
+**Why This Configuration Works:**
+
+1. ✅ **WebSocket support** - `map` directive in `nginx.conf`
+2. ✅ **SSL/TLS encryption** - Wildcard certificate covers domain
+3. ✅ **Path preservation** - No rewrite, FastAPI handles routing
+4. ✅ **Streaming enabled** - `proxy_buffering off`
+5. ✅ **Long operations** - 300s timeout for agent processing
+6. ✅ **Security headers** - Original IP, protocol preserved
+7. ✅ **HTTP → HTTPS redirect** - Force secure connections
 
 #### Key Configuration Details
 
@@ -1704,10 +2130,11 @@ Health check endpoint.
 
 ```bash
 # Check what's using port 2024
-netstat -ano | findstr :2024
+# Linux/Mac
+lsof -i :2024
 
-# Kill the process (Windows)
-taskkill /PID <PID> /F
+# Kill the process
+kill -9 <PID>
 ```
 
 #### AWS Credentials Error

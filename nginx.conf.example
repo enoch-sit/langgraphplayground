@@ -1,68 +1,296 @@
+# ==============================================================================
 # Nginx Configuration for LangGraph Playground
-# Add this to your nginx sites-available configuration
+# ==============================================================================
 #
-# ARCHITECTURE: FastAPI on port 2024 serves BOTH API and UI
+# This file contains production-tested nginx configurations for deploying
+# LangGraph Playground with FastAPI backend.
+#
+# ARCHITECTURE:
+# - FastAPI serves on port 2024 (both API and UI)
 # - All API endpoints: /threads, /runs, /graph, etc.
-# - UI homepage: / (index.html)
+# - UI homepage: / (index.html - vanilla JS or React build)
 # - API documentation: /docs
+#
+# DEPLOYMENT OPTIONS:
+# 1. Subpath deployment (e.g., /langgraphplayground) - For shared servers
+# 2. Root path deployment (e.g., /) - For dedicated domains
+#
+# ==============================================================================
 
-# IMPORTANT: Add WebSocket upgrade mapping to http block in main nginx.conf
-# map $http_upgrade $connection_upgrade {
-#     default upgrade;
-#     '' close;
+# ------------------------------------------------------------------------------
+# STEP 1: Main Nginx Config (/etc/nginx/nginx.conf)
+# ------------------------------------------------------------------------------
+# Add this WebSocket mapping to the http block in your main nginx.conf
+# This MUST be in the http block, not in server or location blocks!
+
+# http {
+#     # ... other settings ...
+#
+#     # WebSocket support - enables smart connection upgrading
+#     map $http_upgrade $connection_upgrade {
+#         default upgrade;
+#         '' close;
+#     }
+#
+#     # ... rest of config ...
 # }
 
-# Option 1: Serve at /langgraphplayground (recommended for shared servers)
-# Access: http://your-server.com/langgraphplayground
+# ------------------------------------------------------------------------------
+# STEP 2: Site Configuration (/etc/nginx/sites-available/your-site)
+# ------------------------------------------------------------------------------
 
-location /langgraphplayground/ {
-    # Remove the /langgraphplayground prefix when proxying
-    rewrite ^/langgraphplayground/(.*) /$1 break;
-    
-    # Proxy to FastAPI on port 2024
-    proxy_pass http://localhost:2024/;
-    proxy_http_version 1.1;
-    
-    # WebSocket support for streaming endpoints
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
-    
-    # Standard proxy headers
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    
-    # Timeouts for long-running agent requests
-    proxy_read_timeout 300s;
-    proxy_connect_timeout 75s;
-    proxy_send_timeout 300s;
-    
-    # Disable buffering for streaming responses (SSE)
-    proxy_buffering off;
-    proxy_cache off;
-    
-    # Allow chunked transfer encoding
-    chunked_transfer_encoding on;
-    
-    # Don't redirect
-    proxy_redirect off;
+# ==============================================================================
+# OPTION 1: SUBPATH DEPLOYMENT (Recommended for shared servers)
+# ==============================================================================
+# Use this when running multiple apps on the same domain
+# Example: https://your-domain.com/langgraphplayground/
+#
+# REQUIREMENTS:
+# - Set ROOT_PATH=/langgraphplayground in .env or docker-compose.yml
+# - React build: Set base: '/langgraphplayground/' in vite.config.ts
+# - FastAPI mounts assets at ROOT_PATH + /assets
+#
+# Access URLs:
+# - UI: https://your-domain.com/langgraphplayground/
+# - API: https://your-domain.com/langgraphplayground/threads
+# - Docs: https://your-domain.com/langgraphplayground/docs
+# ==============================================================================
+
+server {
+    # HTTP to HTTPS redirect
+    listen 80;
+    server_name your-domain.com;
+    return 301 https://$host$request_uri;
 }
 
-# Option 2: Serve at root (simpler, for dedicated domains)
-# Access: http://langgraph-playground.example.com
+server {
+    # HTTPS server
+    listen 443 ssl http2;
+    server_name your-domain.com;
 
-# location / {
-#     proxy_pass http://localhost:2024;
-#     proxy_http_version 1.1;
-#     proxy_set_header Upgrade $http_upgrade;
-#     proxy_set_header Connection "upgrade";
-#     proxy_set_header Host $host;
-#     proxy_set_header X-Real-IP $remote_addr;
-#     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-#     proxy_set_header X-Forwarded-Proto $scheme;
-#     proxy_read_timeout 300s;
-#     proxy_buffering off;
+    # SSL Certificate Configuration
+    ssl_certificate /path/to/your/fullchain.pem;
+    ssl_certificate_key /path/to/your/privkey.pem;
+    
+    # Modern SSL/TLS settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    # OCSP Stapling (optional but recommended)
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    ssl_trusted_certificate /path/to/your/fullchain.pem;
+
+    # Allow large file uploads (for document uploads to LangGraph)
+    client_max_body_size 100M;
+
+    # LangGraph Playground location
+    location /langgraphplayground/ {
+        # ✅ CRITICAL: NO rewrite directive!
+        # FastAPI receives the full path: /langgraphplayground/health
+        # This allows ROOT_PATH to work correctly for asset loading
+        
+        # Proxy to FastAPI on port 2024
+        # ✅ CRITICAL: NO trailing slash on proxy_pass!
+        # With trailing slash: strips /langgraphplayground/ prefix (WRONG)
+        # Without trailing slash: preserves full path (CORRECT)
+        proxy_pass http://localhost:2024;
+        
+        # Enable HTTP/1.1 (required for WebSocket)
+        proxy_http_version 1.1;
+        
+        # WebSocket support for streaming/HITL
+        # Uses $connection_upgrade from nginx.conf map directive
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        
+        # Preserve original request information
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Timeouts for long-running agent operations
+        proxy_read_timeout 300s;      # 5 minutes for agent processing
+        proxy_connect_timeout 75s;    # Initial connection timeout
+        
+        # ✅ CRITICAL: Disable buffering for streaming responses
+        # Without this, streaming/SSE won't work properly
+        proxy_buffering off;
+        proxy_cache off;
+    }
+
+    # Other applications on the same server (optional)
+    # location / {
+    #     proxy_pass http://localhost:3000;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Upgrade $http_upgrade;
+    #     proxy_set_header Connection $connection_upgrade;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    # }
+}
+
+# ==============================================================================
+# OPTION 2: ROOT PATH DEPLOYMENT (For dedicated domains)
+# ==============================================================================
+# Use this when LangGraph Playground is the only app on the domain
+# Example: https://langgraph.your-domain.com/
+#
+# REQUIREMENTS:
+# - No ROOT_PATH needed (or set to empty string)
+# - React build: Set base: '/' in vite.config.ts
+# - Simpler configuration
+#
+# Access URLs:
+# - UI: https://langgraph.your-domain.com/
+# - API: https://langgraph.your-domain.com/threads
+# - Docs: https://langgraph.your-domain.com/docs
+# ==============================================================================
+
+# server {
+#     # HTTP to HTTPS redirect
+#     listen 80;
+#     server_name langgraph.your-domain.com;
+#     return 301 https://$host$request_uri;
 # }
+#
+# server {
+#     # HTTPS server
+#     listen 443 ssl http2;
+#     server_name langgraph.your-domain.com;
+#
+#     # SSL Certificate Configuration
+#     ssl_certificate /path/to/your/fullchain.pem;
+#     ssl_certificate_key /path/to/your/privkey.pem;
+#     ssl_protocols TLSv1.2 TLSv1.3;
+#     ssl_prefer_server_ciphers on;
+#     ssl_ciphers HIGH:!aNULL:!MD5;
+#
+#     # Allow large file uploads
+#     client_max_body_size 100M;
+#
+#     # Root path - proxy everything to FastAPI
+#     location / {
+#         proxy_pass http://localhost:2024;
+#         proxy_http_version 1.1;
+#         
+#         # WebSocket support
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection $connection_upgrade;
+#         
+#         # Standard headers
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         
+#         # Timeouts and buffering
+#         proxy_read_timeout 300s;
+#         proxy_connect_timeout 75s;
+#         proxy_buffering off;
+#         proxy_cache off;
+#     }
+# }
+
+# ==============================================================================
+# COMPLETE PRODUCTION EXAMPLE (Based on project-1-04.eduhk.hk)
+# ==============================================================================
+# This is a real working configuration from a production deployment
+# ==============================================================================
+
+# server {
+#     listen 80;
+#     server_name project-1-04.eduhk.hk;
+#     return 301 https://$host$request_uri;
+# }
+#
+# server {
+#     listen 443 ssl;
+#     server_name project-1-04.eduhk.hk;
+#     
+#     # SSL Certificate (wildcard cert for *.eduhk.hk)
+#     ssl_certificate /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt;
+#     ssl_certificate_key /etc/nginx/ssl/dept-wildcard.eduhk/dept-wildcard.eduhk.hk.key;
+#     ssl_protocols TLSv1.2 TLSv1.3;
+#     ssl_prefer_server_ciphers on;
+#     ssl_ciphers HIGH:!aNULL:!MD5;
+#     ssl_stapling on;
+#     ssl_stapling_verify on;
+#     resolver 8.8.8.8 8.8.4.4 valid=300s;
+#     ssl_trusted_certificate /etc/nginx/ssl/dept-wildcard.eduhk/fullchain.crt;
+#
+#     client_max_body_size 100M;
+#
+#     # LangGraph Playground
+#     location /langgraphplayground/ {
+#         # No rewrite! FastAPI handles full path with ROOT_PATH
+#         proxy_pass http://localhost:2024;
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection $connection_upgrade;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_buffering off;
+#         proxy_cache off;
+#         proxy_read_timeout 300s;
+#         proxy_connect_timeout 75s;
+#     }
+# }
+
+# ==============================================================================
+# TROUBLESHOOTING GUIDE
+# ==============================================================================
+#
+# Problem: "Expected JavaScript but got text/html" errors
+# Cause: Asset paths don't match between Vite build, FastAPI mount, and nginx
+# Solution:
+#   1. Vite: Set base: '/langgraphplayground/' in vite.config.ts
+#   2. FastAPI: Set ROOT_PATH=/langgraphplayground in environment
+#   3. Nginx: NO rewrite, NO trailing slash on proxy_pass
+#
+# Problem: WebSocket connections fail
+# Cause: Missing $connection_upgrade map in nginx.conf
+# Solution: Add map directive to http block in /etc/nginx/nginx.conf
+#
+# Problem: Streaming doesn't work
+# Cause: proxy_buffering is enabled
+# Solution: Add proxy_buffering off; and proxy_cache off;
+#
+# Problem: Long-running requests timeout
+# Cause: Default nginx timeout is too short
+# Solution: Increase proxy_read_timeout to 300s or higher
+#
+# Problem: SSL certificate errors
+# Cause: Hostname in URL doesn't match certificate
+# Solution: Use full domain name (e.g., project-1-04.eduhk.hk, not project-1-04)
+#
+# ==============================================================================
+
+# ==============================================================================
+# TESTING YOUR CONFIGURATION
+# ==============================================================================
+#
+# 1. Test nginx config syntax:
+#    sudo nginx -t
+#
+# 2. Reload nginx:
+#    sudo systemctl reload nginx
+#
+# 3. Check if FastAPI is running:
+#    curl http://localhost:2024/health
+#
+# 4. Test through nginx:
+#    curl https://your-domain.com/langgraphplayground/health
+#
+# 5. Check logs:
+#    sudo tail -f /var/log/nginx/error.log
+#    sudo tail -f /var/log/nginx/access.log
+#
+# ==============================================================================
