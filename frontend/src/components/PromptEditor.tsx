@@ -42,8 +42,8 @@ const TRIP_PLANNER_PROMPTS = [
   },
   {
     name: 'travel_plan_prompt',
-    title: '�️ Travel Planning',
-    icon: '�️',
+    title: '📝 Travel Planning',
+    icon: '📝',
     description: 'Controls what travel information to search for',
     node: 'travel_plan'
   },
