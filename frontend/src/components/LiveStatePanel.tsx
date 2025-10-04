@@ -37,7 +37,13 @@ export function LiveStatePanel({
           action: currentNode === 'START' ? 'Started' : 
                   currentNode === 'END' ? 'Completed' :
                   currentNode === 'agent' ? 'Processing' :
-                  currentNode === 'tools' ? 'Awaiting Approval' : 'Executing'
+                  currentNode === 'tools' ? 'Awaiting Approval' :
+                  currentNode === 'planner' ? 'Planning Trip' :
+                  currentNode === 'travel_plan' ? 'Researching' :
+                  currentNode === 'generate' ? 'Generating' :
+                  currentNode === 'reflect' ? 'Reviewing' :
+                  currentNode === 'travel_critique' ? 'Additional Research' :
+                  'Executing'
         };
         
         // Keep last 15 entries
@@ -58,6 +64,11 @@ export function LiveStatePanel({
       case 'START': return '▶️';
       case 'agent': return '🤖';
       case 'tools': return '🔧';
+      case 'planner': return '📝';
+      case 'travel_plan': return '🗺️';
+      case 'generate': return '✍️';
+      case 'reflect': return '👨‍🏫';
+      case 'travel_critique': return '🔍';
       case 'END': return '⬛';
       default: return '●';
     }
@@ -157,7 +168,7 @@ export function LiveStatePanel({
       {/* Graph Legend */}
       <div className="state-card">
         <div className="state-card-header">
-          <span className="state-card-title">Node Legend</span>
+          <span className="state-card-title">Trip Planner Node Legend</span>
         </div>
         
         <div className="node-legend">
@@ -167,14 +178,29 @@ export function LiveStatePanel({
             <span className="legend-desc">Entry point</span>
           </div>
           <div className="legend-row">
-            <span className="legend-emoji">🤖</span>
-            <span className="legend-name">agent</span>
-            <span className="legend-desc">LLM processing</span>
+            <span className="legend-emoji">📝</span>
+            <span className="legend-name">planner</span>
+            <span className="legend-desc">Creates trip outline</span>
           </div>
           <div className="legend-row">
-            <span className="legend-emoji">🔧</span>
-            <span className="legend-name">tools</span>
-            <span className="legend-desc">Tool execution</span>
+            <span className="legend-emoji">🗺️</span>
+            <span className="legend-name">travel_plan</span>
+            <span className="legend-desc">Researches destination</span>
+          </div>
+          <div className="legend-row">
+            <span className="legend-emoji">✍️</span>
+            <span className="legend-name">generate</span>
+            <span className="legend-desc">Generates itinerary</span>
+          </div>
+          <div className="legend-row">
+            <span className="legend-emoji">👨‍🏫</span>
+            <span className="legend-name">reflect</span>
+            <span className="legend-desc">Reviews & critiques</span>
+          </div>
+          <div className="legend-row">
+            <span className="legend-emoji">🔍</span>
+            <span className="legend-name">travel_critique</span>
+            <span className="legend-desc">Additional research</span>
           </div>
           <div className="legend-row">
             <span className="legend-emoji">⬛</span>
