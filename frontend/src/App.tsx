@@ -187,7 +187,7 @@ function App() {
     
     try {
       // Use streaming for real-time updates
-      console.log('� [sendMessage] Starting streaming execution');
+      console.log('[sendMessage] Starting streaming execution');
       
       for await (const event of api.streamAgent({
         thread_id: currentThreadId,
@@ -326,11 +326,11 @@ function App() {
     if (stateInfo?.next && stateInfo.next.length > 0) {
       const nextNode = stateInfo.next[0];
       if (nextNode === 'planner') {
-        return '�️ The planner will create an outline for your trip. Click "Execute Next Step" to start planning.';
+        return 'The planner will create an outline for your trip. Click "Execute Next Step" to start planning.';
       } else if (nextNode === 'generate') {
         return '📋 The itinerary generator will create a detailed day-by-day plan based on the outline and research. Click "Execute Next Step" to generate.';
       } else if (nextNode === 'reflect') {
-        return '� The travel advisor will review the itinerary and provide feedback. Click "Execute Next Step" to get expert advice.';
+        return 'The travel advisor will review the itinerary and provide feedback. Click "Execute Next Step" to get expert advice.';
       }
       return `⏸️ Ready to execute: ${nextNode}. Click "Execute Next Step" to continue.`;
     }
@@ -343,7 +343,7 @@ function App() {
   return (
     <div className="container">
       <header>
-        <h1>� Trip Planner - LangGraph Playground</h1>
+        <h1>Trip Planner - LangGraph Playground</h1>
         <p>Multi-step trip planning agent with editable prompts</p>
       </header>
       
@@ -489,22 +489,128 @@ function App() {
                   );
                 })}
                 
-                {/* Show approval inline with messages when tool call is pending */}
-                {pendingToolCall && (
-                  <div className="message approval-message">
-                    <div className="message-label">🛑 Approval Required</div>
-                    <div className="tool-call-info">
-                      <div><strong>Tool:</strong> {pendingToolCall.name}</div>
-                      <div><strong>Arguments:</strong></div>
-                      <pre>{JSON.stringify(pendingToolCall.args, null, 2)}</pre>
+                {/* HITL Status Banner - Always visible when HITL mode is ON */}
+                {useHITL && !pendingToolCall && messages.length > 0 && (
+                  <div className="message" style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: '2px solid #5a67d8',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{fontSize: '14px', fontWeight: '600'}}>
+                      🛡️ Human-in-the-Loop Mode Active
                     </div>
-                    <div className="button-group">
-                      <button className="success" onClick={() => handleToolApproval(true)}>
-                        ✅ Approve
+                    <div style={{fontSize: '12px', opacity: 0.9, marginTop: '4px'}}>
+                      You will be asked to approve before any tool executes
+                    </div>
+                  </div>
+                )}
+                
+                {/* PROMINENT Approval UI - Shows when tool call is pending */}
+                {pendingToolCall && (
+                  <div className="message" style={{
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    color: 'white',
+                    border: '3px solid #e63946',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    boxShadow: '0 8px 24px rgba(230, 57, 70, 0.4)',
+                    animation: 'pulse 2s ease-in-out infinite'
+                  }}>
+                    <div style={{
+                      fontSize: '20px',
+                      fontWeight: '700',
+                      marginBottom: '16px',
+                      textAlign: 'center',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
+                    }}>
+                      ⚠️ APPROVAL REQUIRED ⚠️
+                    </div>
+                    
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.15)',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      marginBottom: '16px',
+                      backdropFilter: 'blur(10px)'
+                    }}>
+                      <div style={{fontSize: '16px', fontWeight: '600', marginBottom: '8px'}}>
+                        🔧 Tool: <span style={{fontFamily: 'monospace', fontSize: '18px'}}>{pendingToolCall.name}</span>
+                      </div>
+                      <div style={{fontSize: '14px', marginBottom: '8px', fontWeight: '600'}}>
+                        📝 Arguments:
+                      </div>
+                      <pre style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        padding: '12px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        overflow: 'auto',
+                        maxHeight: '200px',
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                      }}>
+                        {JSON.stringify(pendingToolCall.args, null, 2)}
+                      </pre>
+                    </div>
+                    
+                    <div style={{
+                      display: 'flex',
+                      gap: '12px',
+                      justifyContent: 'center'
+                    }}>
+                      <button
+                        onClick={() => handleToolApproval(true)}
+                        style={{
+                          background: '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          padding: '14px 32px',
+                          fontSize: '16px',
+                          fontWeight: '700',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)',
+                          transition: 'all 0.2s',
+                          textTransform: 'uppercase'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                        onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        ✅ APPROVE & EXECUTE
                       </button>
-                      <button className="danger" onClick={() => handleToolApproval(false)}>
-                        ❌ Reject
+                      <button
+                        onClick={() => handleToolApproval(false)}
+                        style={{
+                          background: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          padding: '14px 32px',
+                          fontSize: '16px',
+                          fontWeight: '700',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
+                          transition: 'all 0.2s',
+                          textTransform: 'uppercase'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                        onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        ❌ REJECT
                       </button>
+                    </div>
+                    
+                    <div style={{
+                      marginTop: '12px',
+                      fontSize: '12px',
+                      textAlign: 'center',
+                      opacity: 0.9,
+                      fontStyle: 'italic'
+                    }}>
+                      ⏸️ Graph execution paused - waiting for your decision
                     </div>
                   </div>
                 )}

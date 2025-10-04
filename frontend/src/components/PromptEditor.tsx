@@ -63,8 +63,8 @@ const TRIP_PLANNER_PROMPTS = [
   },
   {
     name: 'travel_critique_prompt',
-    title: '� Travel Planning Critique',
-    icon: '�',
+    title: '🚗 Travel Planning Critique',
+    icon: '🚗',
     description: 'Controls additional travel research after critique',
     node: 'travel_critique'
   }
