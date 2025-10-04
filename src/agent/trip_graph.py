@@ -229,22 +229,23 @@ class TripPlannerGraph:
 
         # Create messages showing tool calls for UI visibility
         messages_to_add = []
-        
+
         # Add status message showing what we're searching for
         queries_text = "\n".join([f"- {q}" for q in queries_obj.queries[:3]])
         status_msg = AIMessage(
             content=f"🔍 **Step 2: Research Complete**\n\nI searched for:\n{queries_text}\n\nFound {len(content)} relevant sources."
         )
         messages_to_add.append(status_msg)
-        
+
         # IMPORTANT: Add individual tool call messages for each search (for demo visibility)
         for i, query in enumerate(queries_obj.queries[:3], 1):
             # Create a ToolMessage to show the search in the UI
             from langchain_core.messages import ToolMessage
+
             tool_msg = ToolMessage(
                 content=f"🌐 **Tavily Web Search #{i}**\n\n**Query:** `{query}`\n\n**Status:** ✅ Search completed\n**Results:** {min(2, len([c for c in content if len(c) > 0]))} sources found",
                 tool_call_id=f"tavily_search_{i}",
-                name="tavily_search_results_json"
+                name="tavily_search_results_json",
             )
             messages_to_add.append(tool_msg)
 
@@ -366,21 +367,22 @@ class TripPlannerGraph:
 
         # Create messages showing tool calls for UI visibility
         messages_to_add = []
-        
+
         # Add status message
         queries_text = "\n".join([f"- {q}" for q in queries_obj.queries[:2]])
         status_msg = AIMessage(
             content=f"🔍 **Additional Research**\n\nTo address the feedback, I searched for:\n{queries_text}\n\nFound {new_sources} additional sources. Now revising..."
         )
         messages_to_add.append(status_msg)
-        
+
         # Add individual tool call messages for each follow-up search (for demo visibility)
         from langchain_core.messages import ToolMessage
+
         for i, query in enumerate(queries_obj.queries[:2], 1):
             tool_msg = ToolMessage(
                 content=f"🌐 **Tavily Follow-up Search #{i}**\n\n**Query:** `{query}`\n\n**Purpose:** Addressing critique feedback\n**Status:** ✅ Search completed",
                 tool_call_id=f"tavily_critique_{i}",
-                name="tavily_search_results_json"
+                name="tavily_search_results_json",
             )
             messages_to_add.append(tool_msg)
 
