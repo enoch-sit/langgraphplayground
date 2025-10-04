@@ -410,24 +410,30 @@ async def stream_agent(input: RunInput):
                 if "tools" in state.next and state.values.get("messages"):
                     logger.info("🔍 Checking for tool calls in last message...")
                     last_message = state.values["messages"][-1]
-                    
+
                     # Debug: Log message type and attributes
                     logger.info(f"📨 Last message type: {type(last_message).__name__}")
-                    logger.info(f"📨 Has tool_calls attr: {hasattr(last_message, 'tool_calls')}")
-                    
+                    logger.info(
+                        f"📨 Has tool_calls attr: {hasattr(last_message, 'tool_calls')}"
+                    )
+
                     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
                         # Found tool call(s) - extract the first one for approval
                         tool_call = last_message.tool_calls[0]
-                        
+
                         # Log what we found (like the tutorial)
                         logger.info("=" * 70)
                         logger.info("⚠️  HUMAN-IN-THE-LOOP: Tool Approval Required!")
                         logger.info(f"🔧 Agent wants to call: {tool_call.get('name')}")
-                        logger.info(f"📝 With arguments: {json.dumps(tool_call.get('args'), indent=2)}")
+                        logger.info(
+                            f"📝 With arguments: {json.dumps(tool_call.get('args'), indent=2)}"
+                        )
                         logger.info(f"🆔 Tool call ID: {tool_call.get('id')}")
-                        logger.info("⏸️  Execution PAUSED - waiting for human approval...")
+                        logger.info(
+                            "⏸️  Execution PAUSED - waiting for human approval..."
+                        )
                         logger.info("=" * 70)
-                        
+
                         # Send tool call details to frontend for approval UI
                         interrupt_data["pending_tool_call"] = {
                             "name": tool_call.get("name"),
@@ -435,8 +441,12 @@ async def stream_agent(input: RunInput):
                             "id": tool_call.get("id"),
                         }
                     else:
-                        logger.warning("⚠️ Interrupted at 'tools' but no tool_calls found in last message!")
-                        logger.warning(f"   Last message content: {getattr(last_message, 'content', 'N/A')[:100]}")
+                        logger.warning(
+                            "⚠️ Interrupted at 'tools' but no tool_calls found in last message!"
+                        )
+                        logger.warning(
+                            f"   Last message content: {getattr(last_message, 'content', 'N/A')[:100]}"
+                        )
 
                 yield f"data: {json.dumps(interrupt_data)}\n\n"
             else:
@@ -465,14 +475,16 @@ async def resume_agent(input: ResumeInput):
 
         # Log the approval decision (like the tutorial)
         logger.info("=" * 70)
-        logger.info(f"👨‍💼 HUMAN DECISION: {'APPROVED ✅' if input.approved else 'REJECTED ❌'}")
+        logger.info(
+            f"👨‍💼 HUMAN DECISION: {'APPROVED ✅' if input.approved else 'REJECTED ❌'}"
+        )
         logger.info(f"📊 Current next nodes: {state.next}")
-        
+
         if not input.approved:
             # Human REJECTED the tool call
             logger.info("❌ Tool execution REJECTED by user")
             logger.info("   Adding rejection message to state...")
-            
+
             # Update state with rejection message
             graph.update_state(
                 config,
@@ -482,10 +494,10 @@ async def resume_agent(input: ResumeInput):
                     ]
                 },
             )
-            
+
             logger.info("✓ State updated with rejection message")
             logger.info("=" * 70)
-            
+
             return {
                 "status": "rejected",
                 "thread_id": input.thread_id,
@@ -494,7 +506,7 @@ async def resume_agent(input: ResumeInput):
 
         # Human APPROVED - proceed with tool execution
         logger.info("✅ Tool execution APPROVED by user")
-        
+
         # Check if user wants to modify arguments before execution
         if input.modified_args:
             logger.info(f"📝 User modified arguments: {input.modified_args}")
@@ -510,13 +522,13 @@ async def resume_agent(input: ResumeInput):
 
                 graph.update_state(config, {"messages": [modified_message]})
                 logger.info("✓ Tool arguments updated in state")
-        
+
         logger.info("▶️  Resuming graph execution from checkpoint...")
         logger.info("=" * 70)
 
         # Resume execution - this will execute the tool and continue the graph
         result = graph.invoke(None, config=config)
-        
+
         logger.info("✓ Graph execution completed after approval")
 
         return {
